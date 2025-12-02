@@ -8,7 +8,12 @@ import numpy as np
 import logging
 import time
 import sys
+import os
 from pathlib import Path
+
+# Set environment variables for headless/VNC display
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'  # Disable Qt display requirements
+os.environ['OPENCV_VIDEOIO_DEBUG'] = '0'  # Reduce OpenCV verbosity
 
 # Add src directory to path
 sys.path.append(str(Path(__file__).parent))
@@ -166,17 +171,23 @@ class DetectionPipeline:
                 # Display frame
                 if DISPLAY_OUTPUT:
                     try:
-                        # Convert RGB to BGR for OpenCV display
+                        # Save frame to file for VNC viewing (alternative to cv2.imshow)
+                        output_path = LOG_DIR / "latest_detection.jpg"
                         display_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
-                        cv2.imshow(WINDOW_NAME, display_frame)
+                        cv2.imwrite(str(output_path), display_frame)
                         
-                        # Check for quit key
-                        if cv2.waitKey(1) & 0xFF == ord('q'):
-                            logger.info("Quit key pressed")
-                            break
+                        # Also try to show window (works if DISPLAY is available)
+                        try:
+                            cv2.imshow(WINDOW_NAME, display_frame)
+                            if cv2.waitKey(1) & 0xFF == ord('q'):
+                                logger.info("Quit key pressed")
+                                break
+                        except:
+                            pass  # Silently fail if no display
+                            
                     except Exception as e:
-                        logger.warning(f"Display error (running headless?): {e}")
-                        DISPLAY_OUTPUT = False  # Disable display for rest of session
+                        logger.warning(f"Display error: {e}")
+                        DISPLAY_OUTPUT = False
         
         except KeyboardInterrupt:
             logger.info("Detection interrupted by user")
