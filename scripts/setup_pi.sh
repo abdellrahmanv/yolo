@@ -28,11 +28,34 @@ echo -e "${GREEN}[1/10] Updating system packages...${NC}"
 sudo apt update
 sudo apt upgrade -y
 
-echo -e "${GREEN}[2/10] Installing system dependencies...${NC}"
+echo -e "${GREEN}[2/10] Installing Python 3.11...${NC}"
+# Add deadsnakes PPA for older Python versions
+sudo apt install -y software-properties-common
+sudo add-apt-repository -y ppa:deadsnakes/ppa 2>/dev/null || {
+    echo -e "${YELLOW}PPA not available, installing from source...${NC}"
+    
+    # Install build dependencies
+    sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev \
+        libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev \
+        wget libbz2-dev
+    
+    # Download and build Python 3.11
+    cd /tmp
+    wget https://www.python.org/ftp/python/3.11.9/Python-3.11.9.tgz
+    tar -xf Python-3.11.9.tgz
+    cd Python-3.11.9
+    ./configure --enable-optimizations --prefix=/usr/local
+    make -j$(nproc)
+    sudo make altinstall
+    cd "$PROJECT_ROOT"
+}
+
+# Try apt first, fallback already handled above
+sudo apt update 2>/dev/null
+sudo apt install -y python3.11 python3.11-dev python3.11-venv 2>/dev/null || true
+
+echo -e "${GREEN}[3/10] Installing system dependencies...${NC}"
 sudo apt install -y \
-    python3.11 \
-    python3.11-dev \
-    python3.11-venv \
     python3-pip \
     libopenblas-dev \
     liblapack-dev \
@@ -43,37 +66,43 @@ sudo apt install -y \
     libopencv-dev \
     build-essential \
     cmake \
-    libhdf5-dev \
-    libhdf5-serial-dev \
-    python3-h5py
+    libhdf5-dev
 
-echo -e "${GREEN}[3/10] Creating virtual environment...${NC}"
+echo -e "${GREEN}[4/10] Creating virtual environment with Python 3.11...${NC}"
 if [ -d "env" ]; then
     echo -e "${YELLOW}Virtual environment already exists. Removing...${NC}"
     rm -rf env
 fi
-python3.11 -m venv env
 
-echo -e "${GREEN}[4/10] Activating virtual environment...${NC}"
+# Use python3.11 if available, fallback to system python3
+if command -v python3.11 &> /dev/null; then
+    echo "Using Python 3.11"
+    python3.11 -m venv env
+else
+    echo -e "${YELLOW}Python 3.11 not found, using system Python 3${NC}"
+    python3 -m venv env
+fi
+
+echo -e "${GREEN}[5/10] Activating virtual environment...${NC}"
 source env/bin/activate
 
-echo -e "${GREEN}[5/10] Upgrading pip...${NC}"
+echo -e "${GREEN}[6/10] Upgrading pip...${NC}"
 pip install --upgrade pip setuptools wheel
 
-echo -e "${GREEN}[6/10] Installing core Python packages...${NC}"
+echo -e "${GREEN}[7/10] Installing core Python packages...${NC}"
 # Install compatible versions for Python 3.13
 pip install numpy
 pip install opencv-python
 pip install pillow
 
-echo -e "${GREEN}[7/10] Installing Picamera (legacy)...${NC}"
+echo -e "${GREEN}[8/10] Installing Picamera (legacy)...${NC}"
 pip install "picamera[array]"
 
-echo -e "${GREEN}[8/10] Installing PyTorch (CPU version for Raspberry Pi)...${NC}"
+echo -e "${GREEN}[9/10] Installing PyTorch (CPU version for Raspberry Pi)...${NC}"
 # Install PyTorch CPU-only build optimized for ARM
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-echo -e "${GREEN}[9/10] Installing YOLOv5 dependencies...${NC}"
+echo -e "${GREEN}[10/10] Installing YOLOv5 dependencies...${NC}"
 pip install ultralytics
 pip install pyyaml
 pip install tqdm
