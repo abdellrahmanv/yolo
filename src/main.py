@@ -239,10 +239,10 @@ def verify_prerequisites():
         return False
     
     try:
-        from picamera2 import Picamera2
-        logger.info("✓ Picamera2 available")
+        from picamera import PiCamera
+        logger.info("✓ Picamera (legacy) available")
     except ImportError:
-        logger.error("✗ Picamera2 not installed")
+        logger.error("✗ Picamera not installed")
         return False
     
     logger.info("All prerequisites verified")

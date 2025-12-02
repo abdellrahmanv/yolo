@@ -12,7 +12,7 @@ Complete real-time object detection system for Raspberry Pi using YOLOv5 and Pic
 ## Architecture Overview
 
 ```
-Camera → libcamera → Picamera2 → YOLOv5 → Detection Output
+Camera → Legacy Camera Stack → Picamera → YOLOv5 → Detection Output
 ```
 
 ## Quick Start
@@ -62,7 +62,7 @@ yolo_pi_detection/
 
 ## Pipeline Flow
 
-1. **Camera Initialization** - Picamera2 initializes libcamera pipeline
+1. **Camera Initialization** - Legacy Picamera initializes camera hardware
 2. **Frame Capture** - Continuous frame grabbing from camera
 3. **Preprocessing** - Resize and normalize for YOLOv5
 4. **Inference** - Model prediction using best.pt

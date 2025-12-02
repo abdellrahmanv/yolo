@@ -25,9 +25,9 @@
 sudo apt update
 sudo apt upgrade -y
 
-# Enable camera interface
+# Enable LEGACY camera interface (IMPORTANT!)
 sudo raspi-config
-# Navigate to: Interface Options → Camera → Enable → Reboot
+# Navigate to: Interface Options → Legacy Camera → Enable → Reboot
 ```
 
 ### 2. Connect Camera

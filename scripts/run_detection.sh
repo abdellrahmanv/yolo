@@ -47,7 +47,7 @@ import sys
 try:
     import torch
     import cv2
-    from picamera2 import Picamera2
+    from picamera import PiCamera
     print("✓ All dependencies verified")
 except ImportError as e:
     print(f"✗ Missing dependency: {e}")

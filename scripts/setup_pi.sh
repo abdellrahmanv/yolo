@@ -65,8 +65,8 @@ pip install numpy
 pip install opencv-python
 pip install pillow
 
-echo -e "${GREEN}[7/10] Installing Picamera2...${NC}"
-pip install picamera2
+echo -e "${GREEN}[7/10] Installing Picamera (legacy)...${NC}"
+pip install "picamera[array]"
 
 echo -e "${GREEN}[8/10] Installing PyTorch (CPU version for Raspberry Pi)...${NC}"
 # Install PyTorch CPU-only build optimized for ARM

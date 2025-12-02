@@ -1,10 +1,11 @@
 """
 Camera Capture Module for Raspberry Pi
-Handles frame acquisition from Raspberry Pi Camera using Picamera2
+Handles frame acquisition from Raspberry Pi Camera using legacy picamera
 """
 
 import numpy as np
-from picamera2 import Picamera2
+from picamera import PiCamera
+from picamera.array import PiRGBArray
 import time
 import logging
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class CameraCapture:
     """
-    Camera capture interface using Picamera2 library
+    Camera capture interface using legacy picamera library
     Optimized for Raspberry Pi Camera Module 1.3
     """
     
@@ -29,6 +30,7 @@ class CameraCapture:
         self.resolution = resolution
         self.framerate = framerate
         self.camera = None
+        self.raw_capture = None
         self.is_initialized = False
         
         logger.info(f"Initializing camera with resolution {resolution} @ {framerate}fps")
@@ -41,26 +43,15 @@ class CameraCapture:
             bool: True if successful, False otherwise
         """
         try:
-            # Create Picamera2 instance
-            self.camera = Picamera2()
+            # Create PiCamera instance
+            self.camera = PiCamera()
             
             # Configure camera
-            config = self.camera.create_preview_configuration(
-                main={"size": self.resolution, "format": "RGB888"},
-                controls={"FrameRate": self.framerate}
-            )
+            self.camera.resolution = self.resolution
+            self.camera.framerate = self.framerate
             
-            self.camera.configure(config)
-            
-            # Set autofocus (if supported by camera model)
-            try:
-                # Try to set continuous autofocus using Picamera2's controls
-                self.camera.set_controls({"AfMode": 2})  # 2 = Continuous AF
-            except Exception as e:
-                logger.info(f"Autofocus not available on this camera: {e}")
-            
-            # Start camera
-            self.camera.start()
+            # Create RGB array buffer for captures
+            self.raw_capture = PiRGBArray(self.camera, size=self.resolution)
             
             # Wait for camera to stabilize
             time.sleep(2)
@@ -86,8 +77,13 @@ class CameraCapture:
             return None
         
         try:
-            # Capture frame as numpy array
-            frame = self.camera.capture_array()
+            # Clear the stream
+            self.raw_capture.truncate(0)
+            
+            # Capture frame to array
+            self.camera.capture(self.raw_capture, format='rgb', use_video_port=True)
+            frame = self.raw_capture.array
+            
             return frame
             
         except Exception as e:
@@ -135,8 +131,7 @@ class CameraCapture:
             info = {
                 "resolution": self.resolution,
                 "framerate": self.framerate,
-                "sensor_resolution": self.camera.sensor_resolution,
-                "camera_properties": self.camera.camera_properties
+                "camera_model": "Raspberry Pi Camera"
             }
             return info
         except Exception as e:
@@ -149,7 +144,6 @@ class CameraCapture:
         """
         if self.camera is not None:
             try:
-                self.camera.stop()
                 self.camera.close()
                 self.is_initialized = False
                 logger.info("Camera released successfully")
