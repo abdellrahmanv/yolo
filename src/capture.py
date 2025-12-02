@@ -1,13 +1,16 @@
 """
 Camera Capture Module for Raspberry Pi
-Handles frame acquisition from Raspberry Pi Camera using OpenCV
-Compatible with both legacy and modern camera stacks
+Handles frame acquisition from Raspberry Pi Camera using libcamera subprocess
+Compatible with Raspberry Pi Camera Module 1.3
 """
 
 import numpy as np
 import cv2
 import time
 import logging
+import subprocess
+import threading
+from queue import Queue
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 class CameraCapture:
     """
-    Camera capture interface using OpenCV
-    Works with Raspberry Pi Camera via V4L2 driver
+    Camera capture interface using libcamera-vid subprocess
+    Works with Raspberry Pi Camera via libcamera
     """
     
-    def __init__(self, resolution=(640, 480), framerate=30):
+    def __init__(self, resolution=(320, 320), framerate=30):
         """
         Initialize camera capture
         
@@ -29,71 +32,103 @@ class CameraCapture:
         """
         self.resolution = resolution
         self.framerate = framerate
-        self.camera = None
+        self.process = None
+        self.frame_queue = Queue(maxsize=2)
         self.is_initialized = False
+        self.capture_thread = None
+        self.running = False
         
         logger.info(f"Initializing camera with resolution {resolution} @ {framerate}fps")
         
     def initialize(self):
         """
-        Initialize camera pipeline
+        Initialize camera pipeline using libcamera-vid
         
         Returns:
             bool: True if successful, False otherwise
         """
         try:
-            # Try different camera indices and backends
-            backends = [
-                (cv2.CAP_V4L2, "V4L2"),
-                (cv2.CAP_ANY, "Any")
+            # Build libcamera-vid command
+            # Output raw RGB frames to stdout
+            cmd = [
+                'libcamera-vid',
+                '--width', str(self.resolution[0]),
+                '--height', str(self.resolution[1]),
+                '--framerate', str(self.framerate),
+                '--codec', 'yuv420',
+                '--timeout', '0',  # Run indefinitely
+                '-o', '-',  # Output to stdout
+                '--nopreview'
             ]
             
-            for camera_index in [0, 1, 2]:
-                for backend, backend_name in backends:
-                    logger.info(f"Trying camera index {camera_index} with {backend_name} backend...")
-                    self.camera = cv2.VideoCapture(camera_index, backend)
-                    
-                    if self.camera.isOpened():
-                        # Set camera properties BEFORE testing capture
-                        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
-                        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
-                        self.camera.set(cv2.CAP_PROP_FPS, self.framerate)
-                        self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                        
-                        # Wait a moment for camera to initialize
-                        time.sleep(1)
-                        
-                        # Test capture
-                        ret, test_frame = self.camera.read()
-                        if ret and test_frame is not None:
-                            logger.info(f"✓ Camera working on index {camera_index} with {backend_name}")
-                            break
-                        else:
-                            self.camera.release()
-                            self.camera = None
-                    else:
-                        if self.camera is not None:
-                            self.camera.release()
-                        self.camera = None
-                
-                if self.camera is not None and self.camera.isOpened():
-                    break
+            logger.info(f"Starting libcamera-vid: {' '.join(cmd)}")
             
-            if self.camera is None or not self.camera.isOpened():
-                logger.error("Could not open camera on any index or backend")
+            # Start subprocess
+            self.process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                bufsize=10**8
+            )
+            
+            # Wait for camera to initialize
+            time.sleep(2)
+            
+            # Check if process is running
+            if self.process.poll() is not None:
+                logger.error("libcamera-vid process failed to start")
                 return False
             
-            # Wait for camera to stabilize
-            time.sleep(1)
-            
+            self.running = True
             self.is_initialized = True
-            logger.info("Camera initialized successfully")
+            
+            # Start capture thread
+            self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
+            self.capture_thread.start()
+            
+            logger.info("Camera initialized successfully with libcamera")
             return True
             
         except Exception as e:
             logger.error(f"Failed to initialize camera: {e}")
             self.is_initialized = False
             return False
+    
+    def _capture_loop(self):
+        """Background thread to continuously capture frames"""
+        frame_size = self.resolution[0] * self.resolution[1] * 3 // 2  # YUV420 size
+        
+        while self.running:
+            try:
+                # Read YUV420 frame
+                raw_frame = self.process.stdout.read(frame_size)
+                
+                if len(raw_frame) != frame_size:
+                    logger.warning("Incomplete frame received")
+                    continue
+                
+                # Convert YUV420 to RGB
+                yuv_frame = np.frombuffer(raw_frame, dtype=np.uint8).reshape(
+                    (self.resolution[1] * 3 // 2, self.resolution[0])
+                )
+                
+                # Convert YUV to BGR then to RGB
+                bgr_frame = cv2.cvtColor(yuv_frame, cv2.COLOR_YUV2BGR_I420)
+                rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
+                
+                # Put frame in queue (drop old frames if full)
+                if self.frame_queue.full():
+                    try:
+                        self.frame_queue.get_nowait()
+                    except:
+                        pass
+                
+                self.frame_queue.put(rgb_frame)
+                
+            except Exception as e:
+                if self.running:
+                    logger.error(f"Error in capture loop: {e}")
+                break
     
     def capture_frame(self):
         """
@@ -107,16 +142,9 @@ class CameraCapture:
             return None
         
         try:
-            ret, frame = self.camera.read()
-            
-            if not ret or frame is None:
-                logger.error("Failed to read frame from camera")
-                return None
-            
-            # Convert BGR to RGB (OpenCV uses BGR, YOLO expects RGB)
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            return frame_rgb
+            # Get frame from queue (with timeout)
+            frame = self.frame_queue.get(timeout=1.0)
+            return frame
             
         except Exception as e:
             logger.error(f"Failed to capture frame: {e}")
@@ -174,13 +202,23 @@ class CameraCapture:
         """
         Release camera resources
         """
-        if self.camera is not None:
+        self.running = False
+        
+        if self.capture_thread is not None:
+            self.capture_thread.join(timeout=2)
+        
+        if self.process is not None:
             try:
-                self.camera.release()
+                self.process.terminate()
+                self.process.wait(timeout=2)
                 self.is_initialized = False
                 logger.info("Camera released successfully")
             except Exception as e:
                 logger.error(f"Error releasing camera: {e}")
+                try:
+                    self.process.kill()
+                except:
+                    pass
     
     def __enter__(self):
         """Context manager entry"""
