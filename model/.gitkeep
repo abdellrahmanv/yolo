@@ -1,0 +1,4 @@
+# Place your trained best.pt model file in this directory
+# 
+# Copy from your laptop:
+# scp best.pt pi@raspberrypi:~/yolo_pi_detection/model/
