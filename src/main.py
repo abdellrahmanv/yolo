@@ -46,7 +46,7 @@ CAMERA_RESOLUTION = (320, 320)
 CAMERA_FRAMERATE = 30
 
 # Display settings
-DISPLAY_OUTPUT = False  # Set to True if running with monitor
+DISPLAY_OUTPUT = True  # Set to False for headless mode
 WINDOW_NAME = "YOLOv5 Detection"
 
 # Performance settings
@@ -165,14 +165,18 @@ class DetectionPipeline:
                 
                 # Display frame
                 if DISPLAY_OUTPUT:
-                    # Convert RGB to BGR for OpenCV display
-                    display_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
-                    cv2.imshow(WINDOW_NAME, display_frame)
-                    
-                    # Check for quit key
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        logger.info("Quit key pressed")
-                        break
+                    try:
+                        # Convert RGB to BGR for OpenCV display
+                        display_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
+                        cv2.imshow(WINDOW_NAME, display_frame)
+                        
+                        # Check for quit key
+                        if cv2.waitKey(1) & 0xFF == ord('q'):
+                            logger.info("Quit key pressed")
+                            break
+                    except Exception as e:
+                        logger.warning(f"Display error (running headless?): {e}")
+                        DISPLAY_OUTPUT = False  # Disable display for rest of session
         
         except KeyboardInterrupt:
             logger.info("Detection interrupted by user")
