@@ -28,36 +28,21 @@ echo -e "${GREEN}[1/10] Updating system packages...${NC}"
 sudo apt update
 sudo apt upgrade -y
 
-echo -e "${GREEN}[2/10] Checking available Python versions...${NC}"
-# Check what Python versions are available
-AVAILABLE_PYTHONS=$(apt-cache search --names-only '^python3\.[0-9]+$' | grep -oP 'python3\.\d+' | sort -V)
-echo "Available Python versions:"
-echo "$AVAILABLE_PYTHONS"
-
-# Find best compatible Python (prefer 3.9, 3.10, 3.11, 3.12)
-PYTHON_CMD=""
-for version in python3.12 python3.11 python3.10 python3.9; do
-    if apt-cache show $version >/dev/null 2>&1; then
-        PYTHON_CMD=$version
-        echo -e "${GREEN}Selected: $version${NC}"
-        break
-    fi
-done
-
-# Fallback to system python3
-if [ -z "$PYTHON_CMD" ]; then
-    PYTHON_CMD="python3"
-    echo -e "${YELLOW}Using system Python 3${NC}"
+echo -e "${GREEN}[2/10] Installing Python 3.11 from Debian repos...${NC}"
+# Python 3.11 is available in Debian Bookworm repos
+# Add Bookworm repo temporarily if not already present
+if ! grep -q "bookworm" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
+    echo "deb http://deb.debian.org/debian bookworm main" | sudo tee /etc/apt/sources.list.d/bookworm.list
+    sudo apt update
 fi
 
-# Install selected Python and dependencies
-if [ "$PYTHON_CMD" != "python3" ]; then
-    echo -e "${GREEN}Installing $PYTHON_CMD...${NC}"
-    sudo apt install -y $PYTHON_CMD ${PYTHON_CMD}-dev ${PYTHON_CMD}-venv
-fi
+# Install Python 3.11
+sudo apt install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
 
 echo -e "${GREEN}[3/10] Installing system dependencies...${NC}"
 sudo apt install -y \
+    python3-dev \
+    python3-venv \
     python3-pip \
     libopenblas-dev \
     liblapack-dev \
@@ -76,8 +61,8 @@ if [ -d "env" ]; then
     rm -rf env
 fi
 
-echo "Creating virtual environment with $PYTHON_CMD"
-$PYTHON_CMD -m venv env
+# Use Python 3.11 explicitly
+python3.11 -m venv env
 
 echo -e "${GREEN}[5/10] Activating virtual environment...${NC}"
 source env/bin/activate
