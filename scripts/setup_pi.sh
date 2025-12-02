@@ -60,8 +60,9 @@ echo -e "${GREEN}[5/10] Upgrading pip...${NC}"
 pip install --upgrade pip setuptools wheel
 
 echo -e "${GREEN}[6/10] Installing core Python packages...${NC}"
-pip install numpy==1.23.5
-pip install opencv-python==4.8.0.74
+# Install compatible versions for Python 3.13
+pip install numpy
+pip install opencv-python
 pip install pillow
 
 echo -e "${GREEN}[7/10] Installing Picamera2...${NC}"
@@ -69,7 +70,7 @@ pip install picamera2
 
 echo -e "${GREEN}[8/10] Installing PyTorch (CPU version for Raspberry Pi)...${NC}"
 # Install PyTorch CPU-only build optimized for ARM
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 echo -e "${GREEN}[9/10] Installing YOLOv5 dependencies...${NC}"
 pip install ultralytics
