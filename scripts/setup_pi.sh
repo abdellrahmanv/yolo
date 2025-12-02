@@ -103,8 +103,8 @@ try:
     print(f"✓ OpenCV {cv2.__version__} installed")
     import numpy
     print(f"✓ NumPy {numpy.__version__} installed")
-    from picamera2 import Picamera2
-    print("✓ Picamera2 installed")
+    from picamera import PiCamera
+    print("✓ Picamera (legacy) installed")
     print("\n✓ All packages installed successfully!")
 except ImportError as e:
     print(f"✗ Import error: {e}")
