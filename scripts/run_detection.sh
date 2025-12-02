@@ -58,17 +58,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Check camera
-echo -e "${GREEN}Checking camera...${NC}"
-# Try rpicam-still first, fallback to raspistill
-if rpicam-still --timeout 100 -o /dev/null 2>/dev/null || raspistill -t 100 -o /dev/null 2>/dev/null; then
-    echo -e "${GREEN}✓ Camera ready${NC}"
-else
-    echo -e "${RED}✗ Camera not detected!${NC}"
-    echo -e "${YELLOW}Check camera connection and enable Legacy Camera in raspi-config${NC}"
-    exit 1
-fi
-
 echo ""
 echo "Starting detection pipeline..."
 echo "Press Ctrl+C to stop"

@@ -46,7 +46,7 @@ CAMERA_RESOLUTION = (320, 320)
 CAMERA_FRAMERATE = 30
 
 # Display settings
-DISPLAY_OUTPUT = True
+DISPLAY_OUTPUT = False  # Set to True if running with monitor
 WINDOW_NAME = "YOLOv5 Detection"
 
 # Performance settings
