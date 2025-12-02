@@ -33,7 +33,6 @@ sudo apt install -y \
     python3-dev \
     python3-venv \
     python3-pip \
-    libatlas-base-dev \
     libopenblas-dev \
     liblapack-dev \
     libjpeg-dev \
@@ -42,7 +41,10 @@ sudo apt install -y \
     libcamera-tools \
     libopencv-dev \
     build-essential \
-    cmake
+    cmake \
+    libhdf5-dev \
+    libhdf5-serial-dev \
+    python3-h5py
 
 echo -e "${GREEN}[3/10] Creating virtual environment...${NC}"
 if [ -d "env" ]; then
