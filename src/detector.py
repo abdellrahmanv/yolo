@@ -8,7 +8,11 @@ import cv2
 import numpy as np
 import logging
 import time
+import warnings
 from pathlib import Path
+
+# Suppress FutureWarnings from YOLOv5
+warnings.filterwarnings('ignore', category=FutureWarning)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -57,22 +61,30 @@ class YOLOv5Detector:
             
             logger.info("Loading YOLOv5 model...")
             
-            # Load model using torch.hub or ultralytics
+            # Force CPU mode - Raspberry Pi has no GPU
+            torch.set_num_threads(4)  # Use 4 CPU threads
+            
+            # Load model using torch.hub (recommended)
             try:
-                # Method 1: Using torch.hub (recommended)
                 self.model = torch.hub.load('ultralytics/yolov5', 'custom', 
                                            path=str(self.model_path), 
-                                           force_reload=False)
+                                           force_reload=False,
+                                           device='cpu',  # Force CPU
+                                           _verbose=False)  # Reduce logging
             except Exception as e:
                 logger.warning(f"torch.hub method failed: {e}")
                 # Method 2: Direct loading
                 from ultralytics import YOLO
                 self.model = YOLO(str(self.model_path))
             
-            # Configure model
+            # Configure model for CPU inference
             self.model.conf = self.confidence_threshold
             self.model.iou = self.iou_threshold
-            self.model.to(self.device)
+            self.model.to('cpu')  # Ensure CPU mode
+            
+            # Disable AMP (Automatic Mixed Precision) - not needed on CPU
+            if hasattr(self.model, 'amp'):
+                self.model.amp = False
             
             # Extract class names
             if hasattr(self.model, 'names'):
