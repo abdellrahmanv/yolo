@@ -28,31 +28,33 @@ echo -e "${GREEN}[1/10] Updating system packages...${NC}"
 sudo apt update
 sudo apt upgrade -y
 
-echo -e "${GREEN}[2/10] Installing Python 3.11...${NC}"
-# Add deadsnakes PPA for older Python versions
-sudo apt install -y software-properties-common
-sudo add-apt-repository -y ppa:deadsnakes/ppa 2>/dev/null || {
-    echo -e "${YELLOW}PPA not available, installing from source...${NC}"
-    
-    # Install build dependencies
-    sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev \
-        libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev \
-        wget libbz2-dev
-    
-    # Download and build Python 3.11
-    cd /tmp
-    wget https://www.python.org/ftp/python/3.11.9/Python-3.11.9.tgz
-    tar -xf Python-3.11.9.tgz
-    cd Python-3.11.9
-    ./configure --enable-optimizations --prefix=/usr/local
-    make -j$(nproc)
-    sudo make altinstall
-    cd "$PROJECT_ROOT"
-}
+echo -e "${GREEN}[2/10] Checking available Python versions...${NC}"
+# Check what Python versions are available
+AVAILABLE_PYTHONS=$(apt-cache search --names-only '^python3\.[0-9]+$' | grep -oP 'python3\.\d+' | sort -V)
+echo "Available Python versions:"
+echo "$AVAILABLE_PYTHONS"
 
-# Try apt first, fallback already handled above
-sudo apt update 2>/dev/null
-sudo apt install -y python3.11 python3.11-dev python3.11-venv 2>/dev/null || true
+# Find best compatible Python (prefer 3.9, 3.10, 3.11, 3.12)
+PYTHON_CMD=""
+for version in python3.12 python3.11 python3.10 python3.9; do
+    if apt-cache show $version >/dev/null 2>&1; then
+        PYTHON_CMD=$version
+        echo -e "${GREEN}Selected: $version${NC}"
+        break
+    fi
+done
+
+# Fallback to system python3
+if [ -z "$PYTHON_CMD" ]; then
+    PYTHON_CMD="python3"
+    echo -e "${YELLOW}Using system Python 3${NC}"
+fi
+
+# Install selected Python and dependencies
+if [ "$PYTHON_CMD" != "python3" ]; then
+    echo -e "${GREEN}Installing $PYTHON_CMD...${NC}"
+    sudo apt install -y $PYTHON_CMD ${PYTHON_CMD}-dev ${PYTHON_CMD}-venv
+fi
 
 echo -e "${GREEN}[3/10] Installing system dependencies...${NC}"
 sudo apt install -y \
@@ -74,14 +76,8 @@ if [ -d "env" ]; then
     rm -rf env
 fi
 
-# Use python3.11 if available, fallback to system python3
-if command -v python3.11 &> /dev/null; then
-    echo "Using Python 3.11"
-    python3.11 -m venv env
-else
-    echo -e "${YELLOW}Python 3.11 not found, using system Python 3${NC}"
-    python3 -m venv env
-fi
+echo "Creating virtual environment with $PYTHON_CMD"
+$PYTHON_CMD -m venv env
 
 echo -e "${GREEN}[5/10] Activating virtual environment...${NC}"
 source env/bin/activate
