@@ -14,8 +14,8 @@ __pycache__/
 dist/
 build/
 
-# Model files
-*.pt
+# Model files (commented out to allow best.pt upload)
+# *.pt
 *.pth
 *.onnx
 *.weights
