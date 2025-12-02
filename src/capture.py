@@ -5,9 +5,15 @@ Handles frame acquisition from Raspberry Pi Camera using Picamera2
 
 import numpy as np
 from picamera2 import Picamera2
-from libcamera import controls
 import time
 import logging
+
+# Try to import libcamera controls (optional)
+try:
+    from libcamera import controls
+    LIBCAMERA_AVAILABLE = True
+except ImportError:
+    LIBCAMERA_AVAILABLE = False
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -54,10 +60,13 @@ class CameraCapture:
             self.camera.configure(config)
             
             # Set autofocus (if supported)
-            try:
-                self.camera.set_controls({"AfMode": controls.AfModeEnum.Continuous})
-            except Exception as e:
-                logger.warning(f"Autofocus not available: {e}")
+            if LIBCAMERA_AVAILABLE:
+                try:
+                    self.camera.set_controls({"AfMode": controls.AfModeEnum.Continuous})
+                except Exception as e:
+                    logger.warning(f"Autofocus not available: {e}")
+            else:
+                logger.info("libcamera controls not available, skipping autofocus setup")
             
             # Start camera
             self.camera.start()
