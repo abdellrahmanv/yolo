@@ -28,18 +28,7 @@ echo -e "${GREEN}[1/10] Updating system packages...${NC}"
 sudo apt update
 sudo apt upgrade -y
 
-echo -e "${GREEN}[2/10] Installing Python 3.11 from Debian repos...${NC}"
-# Python 3.11 is available in Debian Bookworm repos
-# Add Bookworm repo temporarily if not already present
-if ! grep -q "bookworm" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
-    echo "deb http://deb.debian.org/debian bookworm main" | sudo tee /etc/apt/sources.list.d/bookworm.list
-    sudo apt update
-fi
-
-# Install Python 3.11
-sudo apt install -y python3.11 python3.11-dev python3.11-venv python3.11-distutils
-
-echo -e "${GREEN}[3/10] Installing system dependencies...${NC}"
+echo -e "${GREEN}[2/10] Installing system dependencies...${NC}"
 sudo apt install -y \
     python3-dev \
     python3-venv \
@@ -51,39 +40,36 @@ sudo apt install -y \
     libcamera-apps \
     libcamera-tools \
     libopencv-dev \
+    python3-opencv \
     build-essential \
     cmake \
     libhdf5-dev
 
-echo -e "${GREEN}[4/10] Creating virtual environment with Python 3.11...${NC}"
+echo -e "${GREEN}[3/10] Creating virtual environment...${NC}"
 if [ -d "env" ]; then
     echo -e "${YELLOW}Virtual environment already exists. Removing...${NC}"
     rm -rf env
 fi
 
-# Use Python 3.11 explicitly
-python3.11 -m venv env
+# Use system Python 3 (works with OpenCV capture)
+python3 -m venv env --system-site-packages
 
-echo -e "${GREEN}[5/10] Activating virtual environment...${NC}"
+echo -e "${GREEN}[4/10] Activating virtual environment...${NC}"
 source env/bin/activate
 
-echo -e "${GREEN}[6/10] Upgrading pip...${NC}"
+echo -e "${GREEN}[5/10] Upgrading pip...${NC}"
 pip install --upgrade pip setuptools wheel
 
-echo -e "${GREEN}[7/10] Installing core Python packages...${NC}"
-# Install compatible versions for Python 3.13
+echo -e "${GREEN}[6/10] Installing core Python packages...${NC}"
+# OpenCV already installed via system packages
 pip install numpy
-pip install opencv-python
 pip install pillow
 
-echo -e "${GREEN}[8/10] Installing Picamera (legacy)...${NC}"
-pip install "picamera[array]"
-
-echo -e "${GREEN}[9/10] Installing PyTorch (CPU version for Raspberry Pi)...${NC}"
+echo -e "${GREEN}[7/10] Installing PyTorch (CPU version for Raspberry Pi)...${NC}"
 # Install PyTorch CPU-only build optimized for ARM
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-echo -e "${GREEN}[10/10] Installing YOLOv5 dependencies...${NC}"
+echo -e "${GREEN}[8/10] Installing YOLOv5 dependencies...${NC}"
 pip install ultralytics
 pip install pyyaml
 pip install tqdm
@@ -114,8 +100,6 @@ try:
     print(f"✓ OpenCV {cv2.__version__} installed")
     import numpy
     print(f"✓ NumPy {numpy.__version__} installed")
-    from picamera import PiCamera
-    print("✓ Picamera (legacy) installed")
     print("\n✓ All packages installed successfully!")
 except ImportError as e:
     print(f"✗ Import error: {e}")

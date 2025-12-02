@@ -238,12 +238,8 @@ def verify_prerequisites():
         logger.error("✗ OpenCV not installed")
         return False
     
-    try:
-        from picamera import PiCamera
-        logger.info("✓ Picamera (legacy) available")
-    except ImportError:
-        logger.error("✗ Picamera not installed")
-        return False
+    # Camera check moved to runtime initialization
+    logger.info("✓ Camera will be initialized at runtime")
     
     logger.info("All prerequisites verified")
     return True
