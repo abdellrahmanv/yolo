@@ -131,6 +131,7 @@ class DetectionPipeline:
         logger.info("Press 'q' or Ctrl+C to stop")
         
         self.is_running = True
+        display_enabled = DISPLAY_OUTPUT  # Use local variable to avoid scope issues
         
         try:
             # Main loop
@@ -169,7 +170,7 @@ class DetectionPipeline:
                     logger.info(f"Frame detections: {', '.join(det_info)}")
                 
                 # Display frame
-                if DISPLAY_OUTPUT:
+                if display_enabled:
                     try:
                         # Convert RGB to BGR for OpenCV display
                         display_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
@@ -186,7 +187,7 @@ class DetectionPipeline:
                     except Exception as e:
                         logger.warning(f"Display error: {e}")
                         # Continue without display
-                        DISPLAY_OUTPUT = False
+                        display_enabled = False
         
         except KeyboardInterrupt:
             logger.info("Detection interrupted by user")
