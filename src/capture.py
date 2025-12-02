@@ -8,13 +8,6 @@ from picamera2 import Picamera2
 import time
 import logging
 
-# Try to import libcamera controls (optional)
-try:
-    from libcamera import controls
-    LIBCAMERA_AVAILABLE = True
-except ImportError:
-    LIBCAMERA_AVAILABLE = False
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -59,14 +52,12 @@ class CameraCapture:
             
             self.camera.configure(config)
             
-            # Set autofocus (if supported)
-            if LIBCAMERA_AVAILABLE:
-                try:
-                    self.camera.set_controls({"AfMode": controls.AfModeEnum.Continuous})
-                except Exception as e:
-                    logger.warning(f"Autofocus not available: {e}")
-            else:
-                logger.info("libcamera controls not available, skipping autofocus setup")
+            # Set autofocus (if supported by camera model)
+            try:
+                # Try to set continuous autofocus using Picamera2's controls
+                self.camera.set_controls({"AfMode": 2})  # 2 = Continuous AF
+            except Exception as e:
+                logger.info(f"Autofocus not available on this camera: {e}")
             
             # Start camera
             self.camera.start()
