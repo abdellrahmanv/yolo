@@ -16,12 +16,17 @@ sys.path.append(str(Path(__file__).parent))
 from capture import CameraCapture
 from detector import YOLOv5Detector
 
+# Get project root directory
+PROJECT_ROOT = Path(__file__).parent.parent
+LOG_DIR = PROJECT_ROOT / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('../logs/detections.log'),
+        logging.FileHandler(LOG_DIR / 'detections.log'),
         logging.StreamHandler()
     ]
 )
@@ -32,7 +37,7 @@ logger = logging.getLogger(__name__)
 # ============================================
 
 # Model settings
-MODEL_PATH = "../model/best.pt"
+MODEL_PATH = PROJECT_ROOT / "model" / "best.pt"
 CONFIDENCE_THRESHOLD = 0.5
 IOU_THRESHOLD = 0.45
 
