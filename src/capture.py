@@ -1,11 +1,11 @@
 """
 Camera Capture Module for Raspberry Pi
-Handles frame acquisition from Raspberry Pi Camera using legacy picamera
+Handles frame acquisition from Raspberry Pi Camera using OpenCV
+Compatible with both legacy and modern camera stacks
 """
 
 import numpy as np
-from picamera import PiCamera
-from picamera.array import PiRGBArray
+import cv2
 import time
 import logging
 
@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 class CameraCapture:
     """
-    Camera capture interface using legacy picamera library
-    Optimized for Raspberry Pi Camera Module 1.3
+    Camera capture interface using OpenCV
+    Works with Raspberry Pi Camera via V4L2 driver
     """
     
     def __init__(self, resolution=(640, 480), framerate=30):
@@ -30,7 +30,6 @@ class CameraCapture:
         self.resolution = resolution
         self.framerate = framerate
         self.camera = None
-        self.raw_capture = None
         self.is_initialized = False
         
         logger.info(f"Initializing camera with resolution {resolution} @ {framerate}fps")
@@ -43,18 +42,39 @@ class CameraCapture:
             bool: True if successful, False otherwise
         """
         try:
-            # Create PiCamera instance
-            self.camera = PiCamera()
+            # Try different camera indices
+            for camera_index in [0, 1, 2]:
+                logger.info(f"Trying camera index {camera_index}...")
+                self.camera = cv2.VideoCapture(camera_index)
+                
+                if self.camera.isOpened():
+                    logger.info(f"Camera opened on index {camera_index}")
+                    break
+                else:
+                    self.camera.release()
+                    self.camera = None
             
-            # Configure camera
-            self.camera.resolution = self.resolution
-            self.camera.framerate = self.framerate
+            if self.camera is None or not self.camera.isOpened():
+                logger.error("Could not open camera on any index")
+                return False
             
-            # Create RGB array buffer for captures
-            self.raw_capture = PiRGBArray(self.camera, size=self.resolution)
+            # Set camera properties
+            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
+            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
+            self.camera.set(cv2.CAP_PROP_FPS, self.framerate)
+            
+            # Set buffer size to 1 for low latency
+            self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             
             # Wait for camera to stabilize
             time.sleep(2)
+            
+            # Test capture
+            ret, _ = self.camera.read()
+            if not ret:
+                logger.error("Camera opened but cannot read frames")
+                self.camera.release()
+                return False
             
             self.is_initialized = True
             logger.info("Camera initialized successfully")
@@ -77,14 +97,16 @@ class CameraCapture:
             return None
         
         try:
-            # Clear the stream
-            self.raw_capture.truncate(0)
+            ret, frame = self.camera.read()
             
-            # Capture frame to array
-            self.camera.capture(self.raw_capture, format='rgb', use_video_port=True)
-            frame = self.raw_capture.array
+            if not ret or frame is None:
+                logger.error("Failed to read frame from camera")
+                return None
             
-            return frame
+            # Convert BGR to RGB (OpenCV uses BGR, YOLO expects RGB)
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            return frame_rgb
             
         except Exception as e:
             logger.error(f"Failed to capture frame: {e}")
@@ -144,7 +166,7 @@ class CameraCapture:
         """
         if self.camera is not None:
             try:
-                self.camera.close()
+                self.camera.release()
                 self.is_initialized = False
                 logger.info("Camera released successfully")
             except Exception as e:

@@ -30,8 +30,9 @@ sudo apt upgrade -y
 
 echo -e "${GREEN}[2/10] Installing system dependencies...${NC}"
 sudo apt install -y \
-    python3-dev \
-    python3-venv \
+    python3.11 \
+    python3.11-dev \
+    python3.11-venv \
     python3-pip \
     libopenblas-dev \
     liblapack-dev \
@@ -51,7 +52,7 @@ if [ -d "env" ]; then
     echo -e "${YELLOW}Virtual environment already exists. Removing...${NC}"
     rm -rf env
 fi
-python3 -m venv env
+python3.11 -m venv env
 
 echo -e "${GREEN}[4/10] Activating virtual environment...${NC}"
 source env/bin/activate
