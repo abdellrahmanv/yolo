@@ -42,26 +42,45 @@ class CameraCapture:
         
     def initialize(self):
         """
-        Initialize camera pipeline using libcamera-vid
+        Initialize camera pipeline using rpicam-vid or libcamera-vid
         
         Returns:
             bool: True if successful, False otherwise
         """
         try:
-            # Build libcamera-vid command
-            # Output raw RGB frames to stdout
-            cmd = [
-                'libcamera-vid',
-                '--width', str(self.resolution[0]),
-                '--height', str(self.resolution[1]),
-                '--framerate', str(self.framerate),
-                '--codec', 'yuv420',
-                '--timeout', '0',  # Run indefinitely
-                '-o', '-',  # Output to stdout
-                '--nopreview'
-            ]
+            # Try rpicam-vid first (newer), then libcamera-vid (older)
+            camera_commands = ['rpicam-vid', 'libcamera-vid']
             
-            logger.info(f"Starting libcamera-vid: {' '.join(cmd)}")
+            cmd = None
+            for cam_cmd in camera_commands:
+                try:
+                    # Test if command exists
+                    subprocess.run([cam_cmd, '--version'], 
+                                 stdout=subprocess.DEVNULL, 
+                                 stderr=subprocess.DEVNULL,
+                                 timeout=1)
+                    
+                    # Build command
+                    cmd = [
+                        cam_cmd,
+                        '--width', str(self.resolution[0]),
+                        '--height', str(self.resolution[1]),
+                        '--framerate', str(self.framerate),
+                        '--codec', 'yuv420',
+                        '--timeout', '0',  # Run indefinitely
+                        '-o', '-',  # Output to stdout
+                        '--nopreview'
+                    ]
+                    logger.info(f"Using {cam_cmd}")
+                    break
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    continue
+            
+            if cmd is None:
+                logger.error("Neither rpicam-vid nor libcamera-vid found")
+                return False
+            
+            logger.info(f"Starting camera: {' '.join(cmd)}")
             
             # Start subprocess
             self.process = subprocess.Popen(
@@ -76,7 +95,7 @@ class CameraCapture:
             
             # Check if process is running
             if self.process.poll() is not None:
-                logger.error("libcamera-vid process failed to start")
+                logger.error("Camera process failed to start")
                 return False
             
             self.running = True
@@ -86,7 +105,7 @@ class CameraCapture:
             self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
             self.capture_thread.start()
             
-            logger.info("Camera initialized successfully with libcamera")
+            logger.info("Camera initialized successfully")
             return True
             
         except Exception as e:
