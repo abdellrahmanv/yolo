@@ -42,39 +42,49 @@ class CameraCapture:
             bool: True if successful, False otherwise
         """
         try:
-            # Try different camera indices
+            # Try different camera indices and backends
+            backends = [
+                (cv2.CAP_V4L2, "V4L2"),
+                (cv2.CAP_ANY, "Any")
+            ]
+            
             for camera_index in [0, 1, 2]:
-                logger.info(f"Trying camera index {camera_index}...")
-                self.camera = cv2.VideoCapture(camera_index)
+                for backend, backend_name in backends:
+                    logger.info(f"Trying camera index {camera_index} with {backend_name} backend...")
+                    self.camera = cv2.VideoCapture(camera_index, backend)
+                    
+                    if self.camera.isOpened():
+                        # Set camera properties BEFORE testing capture
+                        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
+                        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
+                        self.camera.set(cv2.CAP_PROP_FPS, self.framerate)
+                        self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                        
+                        # Wait a moment for camera to initialize
+                        time.sleep(1)
+                        
+                        # Test capture
+                        ret, test_frame = self.camera.read()
+                        if ret and test_frame is not None:
+                            logger.info(f"✓ Camera working on index {camera_index} with {backend_name}")
+                            break
+                        else:
+                            self.camera.release()
+                            self.camera = None
+                    else:
+                        if self.camera is not None:
+                            self.camera.release()
+                        self.camera = None
                 
-                if self.camera.isOpened():
-                    logger.info(f"Camera opened on index {camera_index}")
+                if self.camera is not None and self.camera.isOpened():
                     break
-                else:
-                    self.camera.release()
-                    self.camera = None
             
             if self.camera is None or not self.camera.isOpened():
-                logger.error("Could not open camera on any index")
+                logger.error("Could not open camera on any index or backend")
                 return False
-            
-            # Set camera properties
-            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
-            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
-            self.camera.set(cv2.CAP_PROP_FPS, self.framerate)
-            
-            # Set buffer size to 1 for low latency
-            self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             
             # Wait for camera to stabilize
-            time.sleep(2)
-            
-            # Test capture
-            ret, _ = self.camera.read()
-            if not ret:
-                logger.error("Camera opened but cannot read frames")
-                self.camera.release()
-                return False
+            time.sleep(1)
             
             self.is_initialized = True
             logger.info("Camera initialized successfully")
