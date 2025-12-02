@@ -3,17 +3,17 @@ YOLOv5 Detection Pipeline - Main Runtime Controller
 Raspberry Pi Camera 1.3 + YOLOv5 Real-time Object Detection
 """
 
+import os
+# Must set before importing cv2
+os.environ['DISPLAY'] = ':0'  # Use primary display
+os.environ.pop('QT_QPA_PLATFORM', None)  # Remove offscreen mode
+
 import cv2
 import numpy as np
 import logging
 import time
 import sys
-import os
 from pathlib import Path
-
-# Set environment variables for headless/VNC display
-os.environ['QT_QPA_PLATFORM'] = 'offscreen'  # Disable Qt display requirements
-os.environ['OPENCV_VIDEOIO_DEBUG'] = '0'  # Reduce OpenCV verbosity
 
 # Add src directory to path
 sys.path.append(str(Path(__file__).parent))
@@ -171,22 +171,21 @@ class DetectionPipeline:
                 # Display frame
                 if DISPLAY_OUTPUT:
                     try:
-                        # Save frame to file for VNC viewing (alternative to cv2.imshow)
-                        output_path = LOG_DIR / "latest_detection.jpg"
+                        # Convert RGB to BGR for OpenCV display
                         display_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
-                        cv2.imwrite(str(output_path), display_frame)
                         
-                        # Also try to show window (works if DISPLAY is available)
-                        try:
-                            cv2.imshow(WINDOW_NAME, display_frame)
-                            if cv2.waitKey(1) & 0xFF == ord('q'):
-                                logger.info("Quit key pressed")
-                                break
-                        except:
-                            pass  # Silently fail if no display
-                            
+                        # Use GTK backend for better VNC compatibility
+                        cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+                        cv2.imshow(WINDOW_NAME, display_frame)
+                        
+                        # Check for quit key
+                        key = cv2.waitKey(1) & 0xFF
+                        if key == ord('q'):
+                            logger.info("Quit key pressed")
+                            break
                     except Exception as e:
                         logger.warning(f"Display error: {e}")
+                        # Continue without display
                         DISPLAY_OUTPUT = False
         
         except KeyboardInterrupt:
