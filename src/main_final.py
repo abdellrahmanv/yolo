@@ -35,7 +35,7 @@ LOG_DIR.mkdir(exist_ok=True)
 
 # Config
 MODEL_PATH = PROJECT_ROOT / "model" / "best.pt"
-CONFIDENCE_THRESHOLD = 0.75
+CONFIDENCE_THRESHOLD = 0.50
 IOU_THRESHOLD = 0.45
 
 # Camera settings
