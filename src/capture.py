@@ -79,20 +79,19 @@ class CameraCapture:
             
             self.camera = Picamera2()
             
-            # Configure for still/video capture
+            # Configure for still/video capture - optimized for speed
             config = self.camera.create_preview_configuration(
                 main={"size": self.resolution, "format": "RGB888"},
-                buffer_count=4
+                buffer_count=2  # Reduced for less latency
             )
             self.camera.configure(config)
-            
+
             # Start camera
             self.camera.start()
-            
-            # Wait for camera to warm up
-            time.sleep(1)
-            
-            logger.info("Picamera2 initialized")
+
+            # Minimal warmup - just one frame
+            time.sleep(0.2)
+            _ = self.camera.capture_array()
             return True
             
         except ImportError:
@@ -123,12 +122,8 @@ class CameraCapture:
             self.camera.resolution = self.resolution
             self.camera.framerate = self.framerate
             
-            # Wait for camera to warm up
-            time.sleep(2)
-            
-            logger.info("Legacy Picamera initialized")
-            return True
-            
+            # Reduced warmup for faster startup
+            time.sleep(0.5)
         except ImportError:
             logger.debug("Legacy picamera not installed")
             return False
@@ -158,6 +153,7 @@ class CameraCapture:
                     self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
                     self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
                     self.camera.set(cv2.CAP_PROP_FPS, self.framerate)
+                    self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce buffer for less latency
                     
                     # Test capture
                     ret, _ = self.camera.read()

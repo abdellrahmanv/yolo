@@ -1,5 +1,5 @@
 """
-YOLOv5 PyTorch Detection Module
+YOLOv5 PyTorch Detection Module - Optimized for Raspberry Pi
 Uses the original best.pt model for glasses detection
 """
 
@@ -9,35 +9,27 @@ import logging
 import time
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class PyTorchDetector:
     """
-    YOLOv5 PyTorch detector using torch.hub
+    YOLOv5 PyTorch detector - optimized for speed
     Uses best.pt model for glasses detection
     """
 
-    def __init__(self, model_path, confidence_threshold=0.5, iou_threshold=0.45):
-        """
-        Initialize PyTorch detector
-
-        Args:
-            model_path: Path to best.pt model file
-            confidence_threshold: Minimum confidence (0-1)
-            iou_threshold: IoU threshold for NMS
-        """
+    def __init__(self, model_path, confidence_threshold=0.25, iou_threshold=0.45):
         self.model_path = Path(model_path)
         self.confidence_threshold = confidence_threshold
         self.iou_threshold = iou_threshold
         self.model = None
+        self.torch = None  # Keep torch reference
         self.is_loaded = False
         self.class_names = {0: 'glasses'}
         self.inference_times = []
 
     def load_model(self):
-        """Load YOLOv5 model using torch.hub"""
+        """Load YOLOv5 model - optimized loading"""
         try:
             if not self.model_path.exists():
                 print(f"ERROR: Model not found: {self.model_path}")
@@ -46,40 +38,52 @@ class PyTorchDetector:
             print(f"Loading PyTorch model: {self.model_path.name}")
             
             import torch
+            self.torch = torch
             
-            # Force CPU mode for Raspberry Pi
+            # Optimize for CPU on Raspberry Pi
             torch.set_num_threads(4)
+            torch.set_grad_enabled(False)  # Disable gradient computation globally
             
-            # Load model via torch.hub
+            # Load model via torch.hub (skip requirement check for speed)
             self.model = torch.hub.load(
                 'ultralytics/yolov5',
                 'custom',
                 path=str(self.model_path),
                 force_reload=False,
-                device='cpu'
+                device='cpu',
+                _verbose=False  # Reduce logging
             )
             
-            # Configure model
+            # Configure model for inference
             self.model.conf = self.confidence_threshold
             self.model.iou = self.iou_threshold
+            self.model.eval()  # Set to evaluation mode (faster)
             self.model.to('cpu')
+            
+            # Warmup - run once to initialize
+            print("Warming up model...")
+            dummy = np.zeros((320, 320, 3), dtype=np.uint8)
+            with torch.no_grad():
+                _ = self.model(dummy)
             
             # Get class names
             if hasattr(self.model, 'names'):
                 self.class_names = self.model.names
             
             self.is_loaded = True
-            print(f"Model loaded successfully")
+            print(f"Model ready!")
             print(f"Classes: {self.class_names}")
             return True
 
         except Exception as e:
             print(f"ERROR loading model: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def detect(self, frame):
         """
-        Run detection on frame
+        Run detection on frame - optimized
 
         Args:
             frame: RGB numpy array
@@ -93,14 +97,17 @@ class PyTorchDetector:
         try:
             start_time = time.time()
 
-            # Run inference
-            results = self.model(frame)
+            # Run inference without gradient computation
+            with self.torch.no_grad():
+                results = self.model(frame, size=320)  # Force 320 input size
 
             # Parse results
             detections = self._parse_results(results)
 
-            # Track timing
+            # Track timing (keep last 30 only)
             self.inference_times.append(time.time() - start_time)
+            if len(self.inference_times) > 30:
+                self.inference_times.pop(0)
 
             return detections
 
