@@ -142,9 +142,9 @@ pip install tflite-runtime || {
     }
 }
 
-# Install OpenCV (headless for Raspberry Pi - no GUI dependencies)
-echo -e "${BLUE}Installing OpenCV (headless)...${NC}"
-pip install opencv-python-headless>=4.5.0
+# Install OpenCV (full version with GUI support for display window)
+echo -e "${BLUE}Installing OpenCV (with GUI support)...${NC}"
+pip install opencv-python>=4.5.0
 
 # Install Pillow for image processing
 pip install Pillow>=9.0.0
