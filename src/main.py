@@ -7,6 +7,7 @@ Raspberry Pi Camera + TFLite INT8 Real-time Glasses Detection
 import os
 import sys
 import time
+import argparse
 from pathlib import Path
 
 # Set display BEFORE importing cv2 (critical for Raspberry Pi)

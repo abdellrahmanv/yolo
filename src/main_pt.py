@@ -7,6 +7,7 @@ Uses best.pt model for glasses detection
 import os
 import sys
 import time
+import argparse
 from pathlib import Path
 
 # Set display before cv2
