@@ -140,22 +140,20 @@ class DetectionPipeline:
                 
                 # Frame skipping - only run detection every Nth frame
                 if frame_counter % SKIP_FRAMES == 0:
-                    # Resize frame if needed for faster inference
-                    if frame.shape[0] != INPUT_SIZE or frame.shape[1] != INPUT_SIZE:
-                        frame_resized = cv2.resize(frame, (INPUT_SIZE, INPUT_SIZE))
-                    else:
-                        frame_resized = frame
+                    # Always resize to INPUT_SIZE for consistent detection
+                    frame_resized = cv2.resize(frame, (INPUT_SIZE, INPUT_SIZE))
                     
-                    # Detect
+                    # Detect on resized frame
                     detections = self.detector.detect(frame_resized)
                     last_detections = detections
                     self.total_detections += len(detections)
                 else:
                     # Use cached detections on skipped frames
                     detections = last_detections
+                    frame_resized = cv2.resize(frame, (INPUT_SIZE, INPUT_SIZE))
 
-                # Draw
-                annotated = self.detector.draw_detections(frame, detections)
+                # Draw on resized frame (bboxes match this size)
+                annotated = self.detector.draw_detections(frame_resized, detections)
 
                 # FPS
                 self.frame_count += 1

@@ -57,6 +57,8 @@ class PyTorchDetector:
             # Configure model for inference
             self.model.conf = self.confidence_threshold
             self.model.iou = self.iou_threshold
+            self.model.max_det = 10  # Max 10 detections per frame
+            self.model.agnostic = True  # Class-agnostic NMS (single class anyway)
             self.model.eval()  # Set to evaluation mode (faster)
             self.model.to('cpu')
             
