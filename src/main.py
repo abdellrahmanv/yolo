@@ -37,7 +37,7 @@ LOG_DIR.mkdir(exist_ok=True)
 
 # Model settings
 MODEL_PATH = PROJECT_ROOT / "model" / "best-int8.tflite"
-CONFIDENCE_THRESHOLD = 0.5
+CONFIDENCE_THRESHOLD = 0.25  # Lower threshold for INT8 quantized models
 IOU_THRESHOLD = 0.45
 
 # Camera settings (matches model input for optimal performance)

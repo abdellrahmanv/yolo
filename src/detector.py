@@ -20,13 +20,14 @@ class TFLiteDetector:
     Optimized for Raspberry Pi deployment
     """
 
-    def __init__(self, model_path, confidence_threshold=0.5, iou_threshold=0.45):
+    def __init__(self, model_path, confidence_threshold=0.25, iou_threshold=0.45):
         """
         Initialize TFLite detector
 
         Args:
             model_path: Path to best-int8.tflite model file
             confidence_threshold: Minimum confidence for detections (0-1)
+                                  NOTE: Lowered to 0.25 for INT8 quantized models
             iou_threshold: IoU threshold for NMS
         """
         self.model_path = Path(model_path)
@@ -37,59 +38,42 @@ class TFLiteDetector:
         self.output_details = None
         self.is_loaded = False
 
-        # Model specifications (from analysis)
+        # Model specifications
         self.input_shape = (320, 320)  # Height, Width
         self.input_dtype = np.uint8
-        
-        # Quantization parameters
-        self.input_scale = 0.003921568859368563  # ~1/255
-        self.input_zero_point = 0
+
+        # Quantization parameters (will be updated from model)
         self.output_scale = 0.018480218946933746
         self.output_zero_point = 3
 
         # Class names for glasses detection
-        # Update this based on your training classes
-        self.class_names = {0: 'glasses'}  # Modify if you have more classes
-        
+        self.class_names = {0: 'glasses'}
+
         # Performance tracking
         self.inference_times = []
 
-        logger.info(f"Initializing TFLite detector with model: {model_path}")
-
     def load_model(self):
-        """
-        Load TFLite model
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
+        """Load TFLite model"""
         try:
             if not self.model_path.exists():
-                logger.error(f"Model file not found: {self.model_path}")
+                print(f"ERROR: Model not found: {self.model_path}")
                 return False
-
-            logger.info("Loading TFLite model...")
 
             # Import tflite runtime
             try:
                 from tflite_runtime.interpreter import Interpreter
-                logger.info("Using tflite-runtime (optimized)")
             except ImportError:
                 try:
                     from tensorflow.lite.python.interpreter import Interpreter
-                    logger.warning("Using full TensorFlow (consider using tflite-runtime)")
                 except ImportError:
-                    logger.error("Neither tflite-runtime nor tensorflow found!")
-                    logger.error("Install with: pip install tflite-runtime")
+                    print("ERROR: TFLite runtime not found. Install: pip install tflite-runtime")
                     return False
 
             # Create interpreter
             self.interpreter = Interpreter(
                 model_path=str(self.model_path),
-                num_threads=4  # Use 4 CPU threads on Pi
+                num_threads=4
             )
-            
-            # Allocate tensors
             self.interpreter.allocate_tensors()
 
             # Get input/output details
@@ -97,50 +81,28 @@ class TFLiteDetector:
             self.output_details = self.interpreter.get_output_details()[0]
 
             # Update quantization parameters from model
-            input_quant = self.input_details.get('quantization_parameters', {})
-            if 'scales' in input_quant and len(input_quant['scales']) > 0:
-                self.input_scale = float(input_quant['scales'][0])
-                self.input_zero_point = int(input_quant['zero_points'][0])
-
             output_quant = self.output_details.get('quantization_parameters', {})
             if 'scales' in output_quant and len(output_quant['scales']) > 0:
                 self.output_scale = float(output_quant['scales'][0])
                 self.output_zero_point = int(output_quant['zero_points'][0])
 
-            # Log model info
-            logger.info(f"Input shape: {self.input_details['shape']}")
-            logger.info(f"Input dtype: {self.input_details['dtype']}")
-            logger.info(f"Output shape: {self.output_details['shape']}")
-            logger.info(f"Output dtype: {self.output_details['dtype']}")
-
             self.is_loaded = True
-            logger.info("TFLite model loaded successfully")
-            logger.info(f"Classes: {self.class_names}")
-
+            print(f"Model loaded: {self.model_path.name}")
+            print(f"Input: {self.input_details['shape']}, Output: {self.output_details['shape']}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            self.is_loaded = False
+            print(f"ERROR loading model: {e}")
             return False
 
     def preprocess(self, frame):
-        """
-        Preprocess frame for TFLite inference
-
-        Args:
-            frame: Input frame (RGB numpy array, any size)
-
-        Returns:
-            numpy.ndarray: Preprocessed frame ready for inference
-            tuple: Original frame dimensions (height, width)
-        """
+        """Preprocess frame for inference"""
         original_h, original_w = frame.shape[:2]
 
         # Resize to model input size (320x320)
         resized = cv2.resize(frame, (self.input_shape[1], self.input_shape[0]))
 
-        # Ensure RGB format and uint8 type
+        # Ensure uint8
         if resized.dtype != np.uint8:
             resized = resized.astype(np.uint8)
 
@@ -157,33 +119,23 @@ class TFLiteDetector:
             frame: Input frame (RGB numpy array)
 
         Returns:
-            list: List of detections, each containing:
-                  - bbox: [x1, y1, x2, y2] in original frame coordinates
-                  - confidence: detection confidence
-                  - class_id: predicted class ID
-                  - class_name: predicted class name
+            list: List of detections with bbox, confidence, class_id, class_name
         """
         if not self.is_loaded:
-            logger.error("Model not loaded. Call load_model() first.")
             return []
 
         try:
-            # Start timing
             start_time = time.time()
 
             # Preprocess
             input_data, original_size = self.preprocess(frame)
 
-            # Set input tensor
-            self.interpreter.set_tensor(self.input_details['index'], input_data)
-
             # Run inference
+            self.interpreter.set_tensor(self.input_details['index'], input_data)
             self.interpreter.invoke()
 
-            # Get output tensor
+            # Get and dequantize output
             output_data = self.interpreter.get_tensor(self.output_details['index'])
-
-            # Dequantize output
             output_float = (output_data.astype(np.float32) - self.output_zero_point) * self.output_scale
 
             # Parse detections
@@ -192,9 +144,8 @@ class TFLiteDetector:
             # Apply NMS
             detections = self._apply_nms(detections)
 
-            # End timing
-            inference_time = time.time() - start_time
-            self.inference_times.append(inference_time)
+            # Track timing
+            self.inference_times.append(time.time() - start_time)
 
             return detections
 
@@ -206,73 +157,81 @@ class TFLiteDetector:
         """
         Parse YOLOv5 TFLite output
 
-        Args:
-            output: Model output [6300, 6] - (x_center, y_center, w, h, conf, class_id)
-            original_size: Original frame size (height, width)
-
-        Returns:
-            list: Parsed detections
+        YOLOv5 TFLite output format: [6300, 6]
+        Each row: [x_center, y_center, width, height, objectness, class_0_score]
+        
+        - x, y, w, h are NORMALIZED (0-1) relative to input size (320x320)
+        - Final confidence = objectness * class_score
         """
         detections = []
         original_h, original_w = original_size
-
-        # Scale factors
-        scale_x = original_w / self.input_shape[1]
-        scale_y = original_h / self.input_shape[0]
+        input_h, input_w = self.input_shape
 
         for pred in output:
-            # YOLOv5 output format: [x_center, y_center, width, height, confidence, class_id]
-            x_center, y_center, width, height, confidence, class_id = pred[:6]
+            x_center, y_center, width, height, objectness, class_score = pred[:6]
 
-            # Filter by confidence
+            # Skip if box dimensions are invalid
+            if width <= 0.01 or height <= 0.01:
+                continue
+
+            # Calculate final confidence = objectness * class_score
+            confidence = objectness * class_score
+
+            # Filter by confidence threshold
             if confidence < self.confidence_threshold:
                 continue
 
+            # Convert normalized coordinates to pixel coordinates
+            # First scale to input size (320x320), then to original size
+            x_center_px = x_center * input_w
+            y_center_px = y_center * input_h
+            width_px = width * input_w
+            height_px = height * input_h
+
+            # Scale to original frame size
+            scale_x = original_w / input_w
+            scale_y = original_h / input_h
+
+            x_center_orig = x_center_px * scale_x
+            y_center_orig = y_center_px * scale_y
+            width_orig = width_px * scale_x
+            height_orig = height_px * scale_y
+
             # Convert from center format to corner format
-            x1 = (x_center - width / 2) * scale_x
-            y1 = (y_center - height / 2) * scale_y
-            x2 = (x_center + width / 2) * scale_x
-            y2 = (y_center + height / 2) * scale_y
+            x1 = int(x_center_orig - width_orig / 2)
+            y1 = int(y_center_orig - height_orig / 2)
+            x2 = int(x_center_orig + width_orig / 2)
+            y2 = int(y_center_orig + height_orig / 2)
 
             # Clip to frame boundaries
-            x1 = max(0, int(x1))
-            y1 = max(0, int(y1))
-            x2 = min(original_w, int(x2))
-            y2 = min(original_h, int(y2))
+            x1 = max(0, x1)
+            y1 = max(0, y1)
+            x2 = min(original_w, x2)
+            y2 = min(original_h, y2)
 
             # Skip invalid boxes
             if x2 <= x1 or y2 <= y1:
                 continue
 
-            class_id = int(class_id)
             detection = {
                 'bbox': [x1, y1, x2, y2],
                 'confidence': float(confidence),
-                'class_id': class_id,
-                'class_name': self.class_names.get(class_id, f"class_{class_id}")
+                'class_id': 0,
+                'class_name': 'glasses'
             }
             detections.append(detection)
 
         return detections
 
     def _apply_nms(self, detections):
-        """
-        Apply Non-Maximum Suppression
-
-        Args:
-            detections: List of detections
-
-        Returns:
-            list: Filtered detections after NMS
-        """
+        """Apply Non-Maximum Suppression"""
         if len(detections) == 0:
             return []
 
-        # Extract boxes and scores
         boxes = np.array([d['bbox'] for d in detections])
         scores = np.array([d['confidence'] for d in detections])
 
-        # Apply OpenCV NMS
+        # OpenCV NMS
         indices = cv2.dnn.NMSBoxes(
             boxes.tolist(),
             scores.tolist(),
@@ -280,24 +239,14 @@ class TFLiteDetector:
             self.iou_threshold
         )
 
-        # Filter detections
         if len(indices) > 0:
             indices = indices.flatten()
             return [detections[i] for i in indices]
-        
+
         return []
 
     def draw_detections(self, frame, detections):
-        """
-        Draw bounding boxes and labels on frame
-
-        Args:
-            frame: Input frame (numpy array)
-            detections: List of detections from detect()
-
-        Returns:
-            numpy.ndarray: Annotated frame
-        """
+        """Draw bounding boxes and labels on frame"""
         annotated_frame = frame.copy()
 
         for det in detections:
@@ -305,67 +254,46 @@ class TFLiteDetector:
             conf = det['confidence']
             class_name = det['class_name']
 
-            # Color for glasses detection (green)
+            # Green color for glasses
             color = (0, 255, 0)
 
             # Draw bounding box
             cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
 
-            # Create label
+            # Label with confidence
             label = f"{class_name}: {conf:.2f}"
-
-            # Draw label background
             (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-            cv2.rectangle(annotated_frame, (x1, y1 - label_h - 10), (x1 + label_w + 5, y1), color, -1)
-
-            # Draw label text
-            cv2.putText(annotated_frame, label, (x1 + 2, y1 - 5),
+            
+            # Label background
+            cv2.rectangle(annotated_frame, (x1, y1 - label_h - 8), (x1 + label_w + 4, y1), color, -1)
+            
+            # Label text
+            cv2.putText(annotated_frame, label, (x1 + 2, y1 - 4),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
 
         return annotated_frame
 
     def get_average_inference_time(self):
-        """
-        Get average inference time
-
-        Returns:
-            float: Average inference time in seconds
-        """
+        """Get average inference time in seconds"""
         if not self.inference_times:
             return 0.0
-        # Use last 30 samples for moving average
-        recent_times = self.inference_times[-30:]
-        return sum(recent_times) / len(recent_times)
+        recent = self.inference_times[-30:]
+        return sum(recent) / len(recent)
 
     def get_fps(self):
-        """
-        Get current FPS based on inference times
-
-        Returns:
-            float: Frames per second
-        """
+        """Get FPS based on inference time"""
         avg_time = self.get_average_inference_time()
-        if avg_time > 0:
-            return 1.0 / avg_time
-        return 0.0
+        return 1.0 / avg_time if avg_time > 0 else 0.0
 
 
 if __name__ == "__main__":
-    # Test detector
-    logger.info("Testing TFLite detector...")
-
-    # Create dummy frame
-    test_frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
-
-    # Initialize detector
+    print("Testing TFLite detector...")
+    
     detector = TFLiteDetector("../model/best-int8.tflite")
     
     if detector.load_model():
-        logger.info("Model loaded successfully!")
-        
-        # Test inference
+        # Test with dummy frame
+        test_frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
         detections = detector.detect(test_frame)
-        logger.info(f"Test inference complete. Detections: {len(detections)}")
-        logger.info(f"Inference time: {detector.get_average_inference_time()*1000:.2f}ms")
-    else:
-        logger.error("Failed to load model")
+        print(f"Test complete. Detections: {len(detections)}")
+        print(f"Inference time: {detector.get_average_inference_time()*1000:.2f}ms")
