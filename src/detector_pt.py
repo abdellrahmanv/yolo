@@ -130,6 +130,12 @@ class PyTorchDetector:
 
             for pred in preds:
                 x1, y1, x2, y2, conf, cls = pred[:6]
+                
+                # Filter out tiny detections (likely false positives)
+                box_w = x2 - x1
+                box_h = y2 - y1
+                if box_w < 20 or box_h < 10:  # Min size: 20x10 pixels
+                    continue
 
                 detection = {
                     'bbox': [int(x1), int(y1), int(x2), int(y2)],

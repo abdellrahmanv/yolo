@@ -202,8 +202,10 @@ class TFLiteDetector:
         x2 = np.clip(x2, 0, original_w)
         y2 = np.clip(y2, 0, original_h)
 
-        # Filter invalid boxes
-        box_valid = (x2 > x1) & (y2 > y1)
+        # Filter invalid boxes and tiny detections
+        box_w = x2 - x1
+        box_h = y2 - y1
+        box_valid = (x2 > x1) & (y2 > y1) & (box_w >= 20) & (box_h >= 10)
 
         # Build detections list
         detections = []
