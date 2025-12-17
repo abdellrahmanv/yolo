@@ -1,0 +1,17 @@
+# YOLOv5 PyTorch Requirements for Raspberry Pi
+# Python 3.9+ recommended
+
+# PyTorch (CPU version for Raspberry Pi)
+torch
+torchvision
+
+# YOLOv5 dependencies
+ultralytics
+numpy>=1.21.0
+opencv-python>=4.5.0
+Pillow>=9.0.0
+pyyaml
+tqdm
+matplotlib
+seaborn
+pandas
