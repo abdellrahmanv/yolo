@@ -1,8 +1,8 @@
 #!/bin/bash
 
 ###############################################################################
-# YOLOv5 Detection Pipeline - Runtime Launcher
-# Activates virtual environment and starts detection
+# YOLOv5 TFLite Detection - Runtime Launcher
+# Activates virtual environment and starts glasses detection
 ###############################################################################
 
 set -e
@@ -11,6 +11,7 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Get project root
@@ -18,7 +19,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "=============================================="
-echo "  Starting YOLOv5 Detection Pipeline"
+echo "  YOLOv5 TFLite Glasses Detection"
 echo "=============================================="
 echo ""
 
@@ -34,19 +35,23 @@ echo -e "${GREEN}Activating virtual environment...${NC}"
 source env/bin/activate
 
 # Check model exists
-if [ ! -f "model/best.pt" ]; then
-    echo -e "${RED}✗ Model file not found: model/best.pt${NC}"
-    echo -e "${YELLOW}Copy your model: scp best.pt pi@raspberrypi:$PROJECT_ROOT/model/${NC}"
+if [ ! -f "model/best-int8.tflite" ]; then
+    echo -e "${RED}✗ TFLite model not found: model/best-int8.tflite${NC}"
+    echo -e "${YELLOW}Please ensure the model file is in place${NC}"
     exit 1
 fi
 
-# Verify dependencies
+# Verify TFLite runtime
 echo -e "${GREEN}Verifying dependencies...${NC}"
-python3 << EOF
+python3 << 'EOF'
 import sys
 try:
-    import torch
+    try:
+        from tflite_runtime.interpreter import Interpreter
+    except ImportError:
+        from tensorflow.lite.python.interpreter import Interpreter
     import cv2
+    import numpy
     print("✓ All dependencies verified")
 except ImportError as e:
     print(f"✗ Missing dependency: {e}")
@@ -59,12 +64,22 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
+echo -e "${BLUE}Model: model/best-int8.tflite${NC}"
+echo -e "${BLUE}Resolution: 320x320${NC}"
+echo ""
 echo "Starting detection pipeline..."
-echo "Press Ctrl+C to stop"
+echo -e "${YELLOW}Press 'q' or Ctrl+C to stop${NC}"
 echo ""
 
+# Parse arguments
+ARGS=""
+if [ "$1" == "--headless" ] || [ "$1" == "-H" ]; then
+    ARGS="--headless"
+    echo -e "${BLUE}Running in headless mode (no display)${NC}"
+fi
+
 # Run main detection script
-python3 src/main.py
+python3 src/main.py $ARGS
 
 echo ""
 echo -e "${GREEN}Detection pipeline stopped.${NC}"

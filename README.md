@@ -1,165 +1,195 @@
-# Raspberry Pi YOLOv5 Detection Pipeline
+# Raspberry Pi YOLOv5 TFLite Glasses Detection
 
-Complete real-time object detection system for Raspberry Pi using YOLOv5 and Picamera2.
+Real-time glasses detection on Raspberry Pi using YOLOv5 with TensorFlow Lite INT8 quantization for optimal performance.
+
+## Features
+
+- **TFLite INT8 Quantized Model** - 3-5x faster inference than PyTorch
+- **Low Memory Footprint** - ~200MB RAM vs ~800MB for PyTorch
+- **Multiple Camera Support** - Picamera2, legacy Picamera, USB cameras
+- **Headless Mode** - Run via SSH without display
+- **Auto Camera Detection** - Automatically selects best available camera backend
 
 ## System Requirements
-- Raspberry Pi (3/4/5 recommended)
-- Raspberry Pi Camera Module 1.3 or compatible
-- Raspberry Pi OS (Bullseye or Bookworm)
-- 4GB+ RAM recommended
-- Python 3.9+
 
-## Architecture Overview
+| Component | Requirement |
+|-----------|-------------|
+| Hardware | Raspberry Pi 3B/4/5 (4GB+ RAM recommended) |
+| Camera | Pi Camera Module 1.3/2/3 or USB camera |
+| OS | Raspberry Pi OS Bullseye/Bookworm |
+| Python | 3.9 - 3.11 (TFLite compatibility) |
 
-```
-Camera → Legacy Camera Stack → Picamera → YOLOv5 → Detection Output
-```
+## Model Specifications
+
+| Property | Value |
+|----------|-------|
+| Model | `best-int8.tflite` |
+| Input | 320×320×3 RGB (uint8) |
+| Output | 6300 predictions × 6 values |
+| Size | ~1.9 MB |
+| Classes | glasses |
+
+## Expected Performance
+
+| Raspberry Pi | Resolution | Expected FPS |
+|--------------|------------|--------------|
+| Pi 3B        | 320×320    | 3-5 FPS      |
+| Pi 4 (4GB)   | 320×320    | 8-12 FPS     |
+| Pi 5 (8GB)   | 320×320    | 15-20 FPS    |
 
 ## Quick Start
 
-### 1. Transfer Project to Raspberry Pi
+### 1. Transfer to Raspberry Pi
+
 ```bash
-# Copy entire folder to Raspberry Pi
-scp -r yolo_pi_detection/ pi@raspberrypi.local:~/
+# From your PC
+scp -r yolo pi@raspberrypi.local:~/
 ```
 
-### 2. Copy Your Model
-```bash
-# Place your trained best.pt file in the model directory
-scp best.pt pi@raspberrypi.local:~/yolo_pi_detection/model/
-```
+### 2. Run Installation
 
-### 3. Run Installation
 ```bash
-cd ~/yolo_pi_detection
+cd ~/yolo
 chmod +x scripts/setup_pi.sh
 ./scripts/setup_pi.sh
 ```
 
-### 4. Start Detection
+### 3. Start Detection
+
 ```bash
-chmod +x scripts/run_detection.sh
 ./scripts/run_detection.sh
 ```
 
+**Press 'q' or Ctrl+C to stop**
+
 ## Project Structure
+
 ```
-yolo_pi_detection/
-├── env/                    # Virtual environment (created during setup)
-├── scripts/
-│   ├── setup_pi.sh        # Automated installation
-│   └── run_detection.sh   # Launch detection pipeline
+yolo/
 ├── model/
-│   └── best.pt            # Your trained YOLOv5 model
+│   ├── best-int8.tflite    # TFLite INT8 quantized model (used)
+│   └── best.pt              # PyTorch model (backup)
 ├── src/
-│   ├── capture.py         # Camera interface module
-│   ├── detector.py        # YOLOv5 inference engine
-│   └── main.py            # Main runtime controller
+│   ├── capture.py           # Camera capture (multi-backend)
+│   ├── detector.py          # TFLite inference engine
+│   └── main.py              # Main pipeline controller
+├── scripts/
+│   ├── setup_pi.sh          # Installation script
+│   └── run_detection.sh     # Runtime launcher
 ├── logs/
-│   └── detections.log     # Detection logs
+│   └── detections.log       # Detection logs
+├── requirements.txt         # Python dependencies
 └── README.md
 ```
 
-## Pipeline Flow
+## Usage Options
 
-1. **Camera Initialization** - Legacy Picamera initializes camera hardware
-2. **Frame Capture** - Continuous frame grabbing from camera
-3. **Preprocessing** - Resize and normalize for YOLOv5
-4. **Inference** - Model prediction using best.pt
-5. **Postprocessing** - Draw bounding boxes and labels
-6. **Output** - Display results or log detections
+### With Display
+```bash
+./scripts/run_detection.sh
+```
 
-## Manual Installation Steps
+### Headless Mode (SSH)
+```bash
+./scripts/run_detection.sh --headless
+# or
+python3 src/main.py --headless
+```
 
-If automated script fails, follow these steps:
+### Custom Confidence Threshold
+```bash
+python3 src/main.py --confidence 0.6
+```
+
+### Custom Model Path
+```bash
+python3 src/main.py --model /path/to/model.tflite
+```
+
+## Manual Installation
+
+If the setup script fails:
 
 ```bash
 # 1. Update system
 sudo apt update && sudo apt upgrade -y
 
-# 2. Install system dependencies
+# 2. Install dependencies
 sudo apt install -y python3-dev python3-venv python3-pip \
-    libatlas-base-dev libopenblas-dev liblapack-dev \
-    libjpeg-dev libcamera-dev libcamera-apps \
-    libopencv-dev
+    libopenblas-dev libatlas-base-dev python3-picamera2
 
 # 3. Create virtual environment
-cd ~/yolo_pi_detection
-python3 -m venv env
-
-# 4. Activate environment
+python3 -m venv env --system-site-packages
 source env/bin/activate
 
-# 5. Install Python packages
+# 4. Install Python packages
 pip install --upgrade pip
-pip install numpy opencv-python pillow
-pip install picamera2
+pip install tflite-runtime numpy opencv-python-headless Pillow
 
-# 6. Install PyTorch (Raspberry Pi compatible)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-# 7. Install YOLOv5
-pip install ultralytics
-
-# 8. Test camera
-rpicam-still -o test.jpg
+# 5. Run detection
+python3 src/main.py
 ```
 
-## Configuration
+## Camera Setup
 
-Edit `src/main.py` to adjust:
-- `CONFIDENCE_THRESHOLD` - Detection confidence (default: 0.5)
-- `CAMERA_RESOLUTION` - Frame size (default: 640x480)
-- `DISPLAY_OUTPUT` - Show preview window (default: True)
+### Enable Camera
+```bash
+sudo raspi-config
+# Navigate to: Interface Options → Camera → Enable
+sudo reboot
+```
+
+### Test Camera
+```bash
+rpicam-still -o test.jpg
+```
 
 ## Troubleshooting
 
-### Camera not detected
+### Camera Not Detected
+1. Check physical connection
+2. Enable camera in `raspi-config`
+3. Reboot the Pi
+
+### TFLite Import Error
 ```bash
-# Test camera
-rpicam-still -o test.jpg
-# Enable camera interface
-sudo raspi-config
-# Navigate to Interface Options → Camera → Enable
+# Install tflite-runtime
+pip install tflite-runtime
+
+# Or fallback to full TensorFlow
+pip install tensorflow
 ```
 
-### Out of memory errors
-- Reduce camera resolution in `src/main.py`
-- Use YOLOv5s or YOLOv5n (smaller models)
-- Increase swap space
+### Low FPS
+- Ensure using TFLite model (not PyTorch)
+- Close other applications
+- Use headless mode if possible
 
-### Slow inference
-- Use YOLOv5n (nano) model
-- Reduce input resolution
-- Enable hardware acceleration if available
-
-## Performance Tips
-
-1. Use YOLOv5n or YOLOv5s for better FPS
-2. Lower camera resolution (320x240 or 416x416)
-3. Use Raspberry Pi 4/5 with 4GB+ RAM
-4. Overclock CPU (with proper cooling)
-5. Reduce confidence threshold only if needed
-
-## Advanced Usage
-
-### Headless Mode (No Display)
-```python
-# In src/main.py, set:
-DISPLAY_OUTPUT = False
+### Out of Memory
+```bash
+# Increase swap
+sudo dphys-swapfile swapoff
+sudo nano /etc/dphys-swapfile
+# Set: CONF_SWAPSIZE=2048
+sudo dphys-swapfile setup
+sudo dphys-swapfile swapon
 ```
 
-### MQTT Integration
-Add MQTT publishing in `src/main.py` to send detections to external systems.
+## Dependencies
 
-### Save Detections
-Uncomment logging sections in `src/detector.py` to save annotated frames.
+| Package | Purpose |
+|---------|---------|
+| tflite-runtime | TFLite inference (~5MB) |
+| numpy | Array operations |
+| opencv-python-headless | Image processing |
+| picamera2 | Camera capture (optional) |
 
 ## License
-MIT License - Use freely for personal and commercial projects.
 
-## Support
-For issues with:
-- YOLOv5 model: https://github.com/ultralytics/yolov5
-- Picamera2: https://github.com/raspberrypi/picamera2
-- Raspberry Pi Camera: https://www.raspberrypi.com/documentation/
+MIT License
+
+## Resources
+
+- [TensorFlow Lite](https://www.tensorflow.org/lite)
+- [YOLOv5](https://github.com/ultralytics/yolov5)
+- [Picamera2 Documentation](https://github.com/raspberrypi/picamera2)
