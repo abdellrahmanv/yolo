@@ -20,7 +20,7 @@ import logging
 
 sys.path.append(str(Path(__file__).parent))
 
-from capture import CameraCapture
+from capture_threaded import ThreadedCamera as CameraCapture
 from detector_pt import PyTorchDetector
 
 # Paths
@@ -106,11 +106,9 @@ class DetectionPipeline:
         try:
             while self.is_running:
                 # Check if camera needs reset
-                if time.time() - last_camera_reset >= CAMERA_RESET_INTERVAL:
+                if CAMERA_RESET_INTERVAL > 0 and time.time() - last_camera_reset >= CAMERA_RESET_INTERVAL:
                     print("Resetting camera...")
-                    self.camera.release()
-                    time.sleep(0.1)
-                    if not self.camera.initialize():
+                    if not self.camera.reset():
                         print("ERROR: Camera reset failed")
                         break
                     last_camera_reset = time.time()
