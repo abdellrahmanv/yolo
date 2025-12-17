@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 """
-YOLOv5 TFLite Detection Pipeline - Main Runtime Controller
+YOLOv5 TFLite Detection Pipeline - FAST STARTUP
 Raspberry Pi Camera + TFLite INT8 Real-time Glasses Detection
-Optimized for fast startup and low-power edge deployment
 """
 
 import os
 import sys
 import time
-import argparse
 from pathlib import Path
 
 # Set display BEFORE importing cv2 (critical for Raspberry Pi)
 if 'DISPLAY' not in os.environ:
     os.environ['DISPLAY'] = ':0'
 
-# Now import cv2 and other heavy modules
+print("Starting YOLOv5 TFLite detector...")
+_start_time = time.time()
+
 import cv2
 import numpy as np
-import logging
 
 # Add src directory to path
 sys.path.append(str(Path(__file__).parent))
@@ -62,6 +61,7 @@ FPS_UPDATE_INTERVAL = 0.5
 
 def setup_logging(verbose=False):
     """Setup logging with configurable verbosity"""
+    import logging
     level = logging.INFO if verbose else logging.WARNING
     logging.basicConfig(
         level=level,
@@ -81,6 +81,7 @@ class DetectionPipeline:
     """
 
     def __init__(self, headless=False, logger=None):
+        import logging
         self.camera = None
         self.detector = None
         self.is_running = False
@@ -121,6 +122,7 @@ class DetectionPipeline:
 
     def run(self):
         """Main detection loop"""
+        print(f"Ready in {time.time() - _start_time:.2f}s")
         print(f"Starting detection... (Press 'q' to quit)")
         if CAMERA_RESET_INTERVAL > 0:
             print(f"Camera will reset every {CAMERA_RESET_INTERVAL}s")

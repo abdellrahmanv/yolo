@@ -144,9 +144,9 @@ class PyTorchDetector:
 
         return detections
 
-    def draw_detections(self, frame, detections):
-        """Draw bounding boxes on frame"""
-        annotated = frame.copy()
+    def draw_detections(self, frame, detections, in_place=True):
+        """Draw bounding boxes on frame (in-place for speed)"""
+        annotated = frame if in_place else frame.copy()
 
         for det in detections:
             x1, y1, x2, y2 = det['bbox']

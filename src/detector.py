@@ -144,8 +144,10 @@ class TFLiteDetector:
             # Apply NMS
             detections = self._apply_nms(detections)
 
-            # Track timing
+            # Track timing (cap at 30 entries)
             self.inference_times.append(time.time() - start_time)
+            if len(self.inference_times) > 30:
+                self.inference_times = self.inference_times[-30:]
 
             return detections
 
@@ -155,71 +157,63 @@ class TFLiteDetector:
 
     def _parse_output(self, output, original_size):
         """
-        Parse YOLOv5 TFLite output
+        Parse YOLOv5 TFLite output - VECTORIZED for speed
 
         YOLOv5 TFLite output format: [6300, 6]
         Each row: [x_center, y_center, width, height, objectness, class_0_score]
-        
-        - x, y, w, h are NORMALIZED (0-1) relative to input size (320x320)
-        - Final confidence = objectness * class_score
         """
-        detections = []
         original_h, original_w = original_size
         input_h, input_w = self.input_shape
 
-        for pred in output:
-            x_center, y_center, width, height, objectness, class_score = pred[:6]
+        # Vectorized: extract all columns at once
+        x_center = output[:, 0]
+        y_center = output[:, 1]
+        width = output[:, 2]
+        height = output[:, 3]
+        objectness = output[:, 4]
+        class_score = output[:, 5]
 
-            # Skip if box dimensions are invalid
-            if width <= 0.01 or height <= 0.01:
-                continue
+        # Vectorized confidence and filtering
+        confidence = objectness * class_score
+        valid = (confidence >= self.confidence_threshold) & (width > 0.01) & (height > 0.01)
 
-            # Calculate final confidence = objectness * class_score
-            confidence = objectness * class_score
+        if not np.any(valid):
+            return []
 
-            # Filter by confidence threshold
-            if confidence < self.confidence_threshold:
-                continue
+        # Filter to valid only
+        x_center = x_center[valid]
+        y_center = y_center[valid]
+        width = width[valid]
+        height = height[valid]
+        confidence = confidence[valid]
 
-            # Convert normalized coordinates to pixel coordinates
-            # First scale to input size (320x320), then to original size
-            x_center_px = x_center * input_w
-            y_center_px = y_center * input_h
-            width_px = width * input_w
-            height_px = height * input_h
+        # Scale to original size in one step
+        scale_x = original_w / input_w
+        scale_y = original_h / input_h
 
-            # Scale to original frame size
-            scale_x = original_w / input_w
-            scale_y = original_h / input_h
+        x1 = ((x_center - width / 2) * input_w * scale_x).astype(np.int32)
+        y1 = ((y_center - height / 2) * input_h * scale_y).astype(np.int32)
+        x2 = ((x_center + width / 2) * input_w * scale_x).astype(np.int32)
+        y2 = ((y_center + height / 2) * input_h * scale_y).astype(np.int32)
 
-            x_center_orig = x_center_px * scale_x
-            y_center_orig = y_center_px * scale_y
-            width_orig = width_px * scale_x
-            height_orig = height_px * scale_y
+        # Clip to frame
+        x1 = np.clip(x1, 0, original_w)
+        y1 = np.clip(y1, 0, original_h)
+        x2 = np.clip(x2, 0, original_w)
+        y2 = np.clip(y2, 0, original_h)
 
-            # Convert from center format to corner format
-            x1 = int(x_center_orig - width_orig / 2)
-            y1 = int(y_center_orig - height_orig / 2)
-            x2 = int(x_center_orig + width_orig / 2)
-            y2 = int(y_center_orig + height_orig / 2)
+        # Filter invalid boxes
+        box_valid = (x2 > x1) & (y2 > y1)
 
-            # Clip to frame boundaries
-            x1 = max(0, x1)
-            y1 = max(0, y1)
-            x2 = min(original_w, x2)
-            y2 = min(original_h, y2)
-
-            # Skip invalid boxes
-            if x2 <= x1 or y2 <= y1:
-                continue
-
-            detection = {
-                'bbox': [x1, y1, x2, y2],
-                'confidence': float(confidence),
+        # Build detections list
+        detections = []
+        for i in np.where(box_valid)[0]:
+            detections.append({
+                'bbox': [int(x1[i]), int(y1[i]), int(x2[i]), int(y2[i])],
+                'confidence': float(confidence[i]),
                 'class_id': 0,
                 'class_name': 'glasses'
-            }
-            detections.append(detection)
+            })
 
         return detections
 
@@ -245,9 +239,9 @@ class TFLiteDetector:
 
         return []
 
-    def draw_detections(self, frame, detections):
-        """Draw bounding boxes and labels on frame"""
-        annotated_frame = frame.copy()
+    def draw_detections(self, frame, detections, in_place=True):
+        """Draw bounding boxes on frame (in-place for speed)"""
+        annotated_frame = frame if in_place else frame.copy()
 
         for det in detections:
             x1, y1, x2, y2 = det['bbox']

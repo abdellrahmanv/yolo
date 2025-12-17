@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """
-YOLOv5 PyTorch Detection Pipeline
+YOLOv5 PyTorch Detection Pipeline - FAST STARTUP
 Uses best.pt model for glasses detection
 """
 
 import os
 import sys
 import time
-import argparse
 from pathlib import Path
 
 # Set display before cv2
 if 'DISPLAY' not in os.environ:
     os.environ['DISPLAY'] = ':0'
 
+print("Starting YOLOv5 PyTorch detector...")
+_start_time = time.time()
+
 import cv2
 import numpy as np
-import logging
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -48,6 +49,7 @@ WINDOW_NAME = "Glasses Detection (PyTorch)"
 
 
 def setup_logging(verbose=False):
+    import logging
     level = logging.INFO if verbose else logging.WARNING
     logging.basicConfig(
         level=level,
@@ -95,6 +97,7 @@ class DetectionPipeline:
         return True
 
     def run(self):
+        print(f"Ready in {time.time() - _start_time:.2f}s")
         print(f"Starting PyTorch detection... (Press 'q' to quit)")
         if CAMERA_RESET_INTERVAL > 0:
             print(f"Camera will reset every {CAMERA_RESET_INTERVAL}s")

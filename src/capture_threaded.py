@@ -62,7 +62,7 @@ class ThreadedCamera:
         return False
 
     def _init_picamera2(self):
-        """Initialize Picamera2"""
+        """Initialize Picamera2 (fast)"""
         try:
             from picamera2 import Picamera2
             
@@ -73,7 +73,7 @@ class ThreadedCamera:
             )
             self.camera.configure(config)
             self.camera.start()
-            time.sleep(0.1)
+            time.sleep(0.05)  # Minimal warmup
             return True
         except:
             return False
@@ -85,13 +85,13 @@ class ThreadedCamera:
             self.camera = picamera.PiCamera()
             self.camera.resolution = self.resolution
             self.camera.framerate = self.framerate
-            time.sleep(0.3)
+            time.sleep(0.1)  # Minimal warmup
             return True
         except:
             return False
 
     def _init_opencv(self):
-        """Initialize OpenCV camera"""
+        """Initialize OpenCV camera (fast - no test frame)"""
         try:
             for idx in [0, 1, -1]:
                 self.camera = cv2.VideoCapture(idx)
@@ -103,10 +103,7 @@ class ThreadedCamera:
                     self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
                     self.camera.set(cv2.CAP_PROP_FPS, self.framerate)
                     self.camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                    ret, _ = self.camera.read()
-                    if ret:
-                        return True
-                self.camera.release()
+                    return True  # Skip test frame - thread grabs first
             return False
         except:
             return False
@@ -117,16 +114,16 @@ class ThreadedCamera:
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
         
-        # Wait for first frame
-        timeout = 2.0
+        # Wait for first frame (short timeout for fast startup)
+        timeout = 0.3
         start = time.time()
         while self.latest_frame is None and time.time() - start < timeout:
-            time.sleep(0.01)
+            time.sleep(0.005)
         
         if self.latest_frame is not None:
-            logger.info("Capture thread started")
+            print(f"Camera ready in {time.time()-start:.2f}s")
         else:
-            logger.warning("Timeout waiting for first frame")
+            print("Camera starting (first frame pending)...")
 
     def _capture_loop(self):
         """Background capture loop"""
