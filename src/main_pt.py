@@ -34,6 +34,7 @@ CONFIDENCE_THRESHOLD = 0.25  # Same as TFLite pipeline
 IOU_THRESHOLD = 0.45
 CAMERA_RESOLUTION = (320, 320)
 CAMERA_FRAMERATE = 30
+CAMERA_RESET_INTERVAL = 4  # Reset camera every N seconds (0 to disable)
 WINDOW_NAME = "Glasses Detection (PyTorch)"
 
 
@@ -86,6 +87,7 @@ class DetectionPipeline:
 
     def run(self):
         print(f"Starting PyTorch detection... (Press 'q' to quit)")
+        print(f"Camera will reset every {CAMERA_RESET_INTERVAL}s")
         
         self.is_running = True
         display_enabled = not self.headless
@@ -99,10 +101,25 @@ class DetectionPipeline:
                 print(f"Warning: No display: {e}")
                 display_enabled = False
 
+        last_camera_reset = time.time()
+
         try:
-            for frame in self.camera.capture_continuous():
-                if not self.is_running:
-                    break
+            while self.is_running:
+                # Check if camera needs reset
+                if time.time() - last_camera_reset >= CAMERA_RESET_INTERVAL:
+                    print("Resetting camera...")
+                    self.camera.release()
+                    time.sleep(0.1)
+                    if not self.camera.initialize():
+                        print("ERROR: Camera reset failed")
+                        break
+                    last_camera_reset = time.time()
+                    print("Camera reset complete")
+
+                # Capture frame
+                frame = self.camera.capture_frame()
+                if frame is None:
+                    continue
 
                 # Detect
                 detections = self.detector.detect(frame)

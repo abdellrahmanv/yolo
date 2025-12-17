@@ -43,6 +43,7 @@ IOU_THRESHOLD = 0.45
 # Camera settings (matches model input for optimal performance)
 CAMERA_RESOLUTION = (320, 320)
 CAMERA_FRAMERATE = 30
+CAMERA_RESET_INTERVAL = 4  # Reset camera every N seconds (0 to disable)
 
 # Display settings
 DISPLAY_OUTPUT = True
@@ -115,6 +116,8 @@ class DetectionPipeline:
     def run(self):
         """Main detection loop"""
         print(f"Starting detection... (Press 'q' to quit)")
+        if CAMERA_RESET_INTERVAL > 0:
+            print(f"Camera will reset every {CAMERA_RESET_INTERVAL}s")
         
         self.is_running = True
         display_enabled = DISPLAY_OUTPUT and not self.headless
@@ -131,10 +134,25 @@ class DetectionPipeline:
                 print(f"Warning: Could not create window: {e}")
                 display_enabled = False
 
+        last_camera_reset = time.time()
+
         try:
-            for frame in self.camera.capture_continuous():
-                if not self.is_running:
-                    break
+            while self.is_running:
+                # Check if camera needs reset
+                if CAMERA_RESET_INTERVAL > 0 and time.time() - last_camera_reset >= CAMERA_RESET_INTERVAL:
+                    print("Resetting camera...")
+                    self.camera.release()
+                    time.sleep(0.1)
+                    if not self.camera.initialize():
+                        print("ERROR: Camera reset failed")
+                        break
+                    last_camera_reset = time.time()
+                    print("Camera reset complete")
+
+                # Capture frame
+                frame = self.camera.capture_frame()
+                if frame is None:
+                    continue
 
                 # Run detection
                 detections = self.detector.detect(frame)
