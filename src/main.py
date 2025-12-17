@@ -37,7 +37,7 @@ LOG_DIR.mkdir(exist_ok=True)
 
 # Model settings
 MODEL_PATH = PROJECT_ROOT / "model" / "best-int8.tflite"
-CONFIDENCE_THRESHOLD = 0.50  # Higher threshold to reduce false positives
+CONFIDENCE_THRESHOLD = 0.60  # Higher threshold to reduce false positives
 IOU_THRESHOLD = 0.45
 
 # Camera settings (matches model input for optimal performance)
