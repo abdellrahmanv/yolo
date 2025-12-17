@@ -65,7 +65,6 @@ sudo apt install -y \
     python3-venv \
     python3-pip \
     libopenblas-dev \
-    libatlas-base-dev \
     libjpeg-dev \
     zlib1g-dev \
     libpng-dev \
