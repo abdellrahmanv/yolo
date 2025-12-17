@@ -45,6 +45,12 @@ CAMERA_RESOLUTION = (320, 320)
 CAMERA_FRAMERATE = 30
 CAMERA_RESET_INTERVAL = 4  # Reset camera every N seconds (0 to disable)
 
+# FPS Optimizations
+SKIP_FRAMES = 1  # Process every Nth frame (1=no skip, 2=skip every other, 3=process 1/3)
+HEADLESS_BOOST = False  # True = no display output, maximum FPS
+INPUT_SIZE = 320  # Model input size (smaller = faster: 160, 224, 320)
+USE_MJPG = True  # Use MJPG camera format (faster on Pi)
+
 # Display settings
 DISPLAY_OUTPUT = True
 WINDOW_NAME = "Glasses Detection"
@@ -135,6 +141,8 @@ class DetectionPipeline:
                 display_enabled = False
 
         last_camera_reset = time.time()
+        frame_counter = 0
+        last_detections = []
 
         try:
             while self.is_running:
@@ -152,9 +160,17 @@ class DetectionPipeline:
                 if frame is None:
                     continue
 
-                # Run detection
-                detections = self.detector.detect(frame)
-                self.total_detections += len(detections)
+                frame_counter += 1
+                
+                # Frame skipping - only run detection every Nth frame
+                if frame_counter % SKIP_FRAMES == 0:
+                    # Run detection
+                    detections = self.detector.detect(frame)
+                    last_detections = detections
+                    self.total_detections += len(detections)
+                else:
+                    # Use cached detections on skipped frames
+                    detections = last_detections
 
                 # Draw detections on frame
                 annotated_frame = self.detector.draw_detections(frame, detections)

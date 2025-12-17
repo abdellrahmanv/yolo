@@ -32,9 +32,18 @@ LOG_DIR.mkdir(exist_ok=True)
 MODEL_PATH = PROJECT_ROOT / "model" / "best.pt"
 CONFIDENCE_THRESHOLD = 0.25  # Same as TFLite pipeline
 IOU_THRESHOLD = 0.45
-CAMERA_RESOLUTION = (320, 320)
+
+# Camera settings
+CAMERA_RESOLUTION = (320, 320)  # Smaller = faster
 CAMERA_FRAMERATE = 30
 CAMERA_RESET_INTERVAL = 4  # Reset camera every N seconds (0 to disable)
+
+# FPS Optimizations
+SKIP_FRAMES = 2  # Process every Nth frame (1=no skip, 2=skip every other)
+HEADLESS_BOOST = False  # True = no display, maximum FPS
+INPUT_SIZE = 320  # Model input size (smaller = faster: 160, 224, 320)
+USE_MJPG = True  # Use MJPG camera format (faster on Pi)
+
 WINDOW_NAME = "Glasses Detection (PyTorch)"
 
 
@@ -87,10 +96,12 @@ class DetectionPipeline:
 
     def run(self):
         print(f"Starting PyTorch detection... (Press 'q' to quit)")
-        print(f"Camera will reset every {CAMERA_RESET_INTERVAL}s")
+        if CAMERA_RESET_INTERVAL > 0:
+            print(f"Camera will reset every {CAMERA_RESET_INTERVAL}s")
+        print(f"Frame skip: {SKIP_FRAMES}, Input size: {INPUT_SIZE}")
         
         self.is_running = True
-        display_enabled = not self.headless
+        display_enabled = not self.headless and not HEADLESS_BOOST
 
         if display_enabled:
             try:
@@ -102,6 +113,8 @@ class DetectionPipeline:
                 display_enabled = False
 
         last_camera_reset = time.time()
+        frame_counter = 0
+        last_detections = []
 
         try:
             while self.is_running:
@@ -119,9 +132,23 @@ class DetectionPipeline:
                 if frame is None:
                     continue
 
-                # Detect
-                detections = self.detector.detect(frame)
-                self.total_detections += len(detections)
+                frame_counter += 1
+                
+                # Frame skipping - only run detection every Nth frame
+                if frame_counter % SKIP_FRAMES == 0:
+                    # Resize frame if needed for faster inference
+                    if frame.shape[0] != INPUT_SIZE or frame.shape[1] != INPUT_SIZE:
+                        frame_resized = cv2.resize(frame, (INPUT_SIZE, INPUT_SIZE))
+                    else:
+                        frame_resized = frame
+                    
+                    # Detect
+                    detections = self.detector.detect(frame_resized)
+                    last_detections = detections
+                    self.total_detections += len(detections)
+                else:
+                    # Use cached detections on skipped frames
+                    detections = last_detections
 
                 # Draw
                 annotated = self.detector.draw_detections(frame, detections)

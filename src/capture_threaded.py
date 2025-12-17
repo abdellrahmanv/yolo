@@ -19,10 +19,11 @@ class ThreadedCamera:
     Main thread always gets the latest frame without waiting.
     """
 
-    def __init__(self, resolution=(320, 320), framerate=30, buffer_size=2):
+    def __init__(self, resolution=(320, 320), framerate=30, buffer_size=2, use_mjpg=True):
         self.resolution = resolution
         self.framerate = framerate
         self.buffer_size = buffer_size
+        self.use_mjpg = use_mjpg
         
         self.camera = None
         self.backend = None
@@ -95,6 +96,9 @@ class ThreadedCamera:
             for idx in [0, 1, -1]:
                 self.camera = cv2.VideoCapture(idx)
                 if self.camera.isOpened():
+                    # Use MJPG format for faster capture on Pi
+                    if self.use_mjpg:
+                        self.camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
                     self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
                     self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
                     self.camera.set(cv2.CAP_PROP_FPS, self.framerate)
