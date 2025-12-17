@@ -142,12 +142,8 @@ pip install tflite-runtime || {
     }
 }
 
-# Install PyTorch (for original model support)
-echo -e "${BLUE}Installing PyTorch (CPU version)...${NC}"
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu || {
-    echo -e "${YELLOW}PyTorch install failed, trying alternative...${NC}"
-    pip install torch torchvision
-}
+# Note: PyTorch is NOT installed here - use env_pt for PyTorch
+# This keeps the TFLite environment lightweight
 
 # Install OpenCV (full version with GUI support for display window)
 echo -e "${BLUE}Installing OpenCV (with GUI support)...${NC}"

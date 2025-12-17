@@ -107,6 +107,10 @@ echo -e "${BLUE}Installing YOLOv5 dependencies...${NC}"
 pip install ultralytics
 pip install Pillow pyyaml tqdm matplotlib seaborn pandas
 
+# These are needed by torch.hub to avoid warnings
+echo -e "${BLUE}Installing torch.hub dependencies...${NC}"
+pip install gitpython urllib3
+
 # ============================================
 # Step 7: Verify installation
 # ============================================
