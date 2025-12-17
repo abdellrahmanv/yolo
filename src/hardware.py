@@ -110,18 +110,22 @@ class BuzzerController:
     def _beep_loop(self):
         """Background thread for beeping"""
         while self.running:
-            if self.current_frequency > 0 and self.is_initialized:
-                # Beep on
-                GPIO.output(self.pin, GPIO.HIGH)
-                time.sleep(0.05)  # 50ms beep duration
-                GPIO.output(self.pin, GPIO.LOW)
-                
-                # Wait for next beep
-                interval = 1.0 / self.current_frequency - 0.05
-                if interval > 0:
-                    time.sleep(interval)
-            else:
-                time.sleep(0.1)  # Check again in 100ms
+            try:
+                if self.current_frequency > 0 and self.is_initialized:
+                    # Beep on
+                    GPIO.output(self.pin, GPIO.HIGH)
+                    time.sleep(0.05)  # 50ms beep duration
+                    GPIO.output(self.pin, GPIO.LOW)
+                    
+                    # Wait for next beep (safe division)
+                    if self.current_frequency > 0:
+                        interval = 1.0 / self.current_frequency - 0.05
+                        if interval > 0:
+                            time.sleep(interval)
+                else:
+                    time.sleep(0.1)  # Check again in 100ms
+            except Exception:
+                time.sleep(0.1)
     
     def cleanup(self):
         """Cleanup GPIO"""

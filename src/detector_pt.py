@@ -3,6 +3,10 @@ YOLOv5 PyTorch Detection Module - Optimized for Raspberry Pi
 Uses the original best.pt model for glasses detection
 """
 
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=UserWarning)
+
 import numpy as np
 import cv2
 import logging

@@ -249,7 +249,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='YOLOv5 Final AI - Glasses Detection with Hardware')
     parser.add_argument('--headless', '-H', action='store_true', help='No display output')
     parser.add_argument('--no-hardware', '-N', action='store_true', help='Disable LCD and buzzer')
-    parser.add_argument('--confidence', '-c', type=float, default=0.75, help='Confidence threshold')
+    parser.add_argument('--confidence', '-c', type=float, default=0.50, help='Confidence threshold')
     parser.add_argument('--model', '-m', type=str, default=None, help='Model path')
     return parser.parse_args()
 

@@ -214,7 +214,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='YOLOv5 PyTorch Glasses Detection')
     parser.add_argument('--headless', '-H', action='store_true', help='No display')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose')
-    parser.add_argument('--confidence', '-c', type=float, default=0.25, help='Threshold')
+    parser.add_argument('--confidence', '-c', type=float, default=0.50, help='Threshold')
     parser.add_argument('--model', '-m', type=str, default=None, help='Model path')
     return parser.parse_args()
 
