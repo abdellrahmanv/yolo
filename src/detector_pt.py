@@ -140,7 +140,16 @@ class PyTorchDetector:
                 # Filter out tiny detections (likely false positives)
                 box_w = x2 - x1
                 box_h = y2 - y1
-                if box_w < 20 or box_h < 10:  # Min size: 20x10 pixels
+                if box_w < 30 or box_h < 15:  # Min size: 30x15 pixels
+                    continue
+                
+                # Filter out edge/corner detections (false positives)
+                # Ignore boxes that touch the frame edges (within 10px margin)
+                EDGE_MARGIN = 10
+                FRAME_SIZE = 320  # Input size
+                if x1 < EDGE_MARGIN or y1 < EDGE_MARGIN:
+                    continue
+                if x2 > FRAME_SIZE - EDGE_MARGIN or y2 > FRAME_SIZE - EDGE_MARGIN:
                     continue
 
                 detection = {
