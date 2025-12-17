@@ -131,6 +131,10 @@ class PyTorchDetector:
             for pred in preds:
                 x1, y1, x2, y2, conf, cls = pred[:6]
                 
+                # Skip low confidence detections
+                if conf < self.confidence_threshold:
+                    continue
+                
                 # Filter out tiny detections (likely false positives)
                 box_w = x2 - x1
                 box_h = y2 - y1
