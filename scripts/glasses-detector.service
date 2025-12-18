@@ -1,0 +1,19 @@
+[Unit]
+Description=YOLOv5 Glasses Detection - Final AI
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/yolo
+ExecStart=/bin/bash /home/pi/yolo/scripts/final_ai.sh --headless
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Fast startup optimizations
+Nice=-10
+
+[Install]
+WantedBy=multi-user.target
