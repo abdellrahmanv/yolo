@@ -154,6 +154,9 @@ class TFLiteDetector:
             output_data = self.interpreter.get_tensor(self.output_details['index'])
             output_float = (output_data.astype(np.float32) - self.output_zero_point) * self.output_scale
 
+            # Clamp negative values (artifact of INT8 dequantization)
+            output_float = np.maximum(output_float, 0.0)
+
             # Parse detections
             detections = self._parse_output(output_float[0], original_size)
 
@@ -189,12 +192,22 @@ class TFLiteDetector:
         height = output[:, 3]
         objectness = output[:, 4]
 
-        # Person class score is at column index 5 (COCO class 0)
-        person_score = output[:, 5 + self.PERSON_CLASS_ID]
+        # All 80 class scores (columns 5-84)
+        all_class_scores = output[:, 5:5 + self.num_classes]
+
+        # Only keep predictions where person (class 0) is the TOP scoring class
+        best_class = np.argmax(all_class_scores, axis=1)
+        is_person = (best_class == self.PERSON_CLASS_ID)
+
+        # Person class score
+        person_score = all_class_scores[:, self.PERSON_CLASS_ID]
 
         # Confidence = objectness * class_score
         confidence = objectness * person_score
-        valid = (confidence >= self.confidence_threshold) & (width > 0.01) & (height > 0.01)
+        valid = (is_person
+                 & (confidence >= self.confidence_threshold)
+                 & (width > 0.01)
+                 & (height > 0.01))
 
         if not np.any(valid):
             return []

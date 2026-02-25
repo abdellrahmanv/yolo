@@ -43,7 +43,7 @@ IOU_THRESHOLD = 0.45
 # Camera settings (matches model input for optimal performance)
 CAMERA_RESOLUTION = (320, 320)
 CAMERA_FRAMERATE = 30
-CAMERA_RESET_INTERVAL = 4  # Reset camera every N seconds (0 to disable)
+CAMERA_RESET_INTERVAL = 6  # Reset camera every N seconds (0 to disable)
 
 # FPS Optimizations
 SKIP_FRAMES = 2  # Process every Nth frame (1=no skip, 2=skip every other, 3=process 1/3)
