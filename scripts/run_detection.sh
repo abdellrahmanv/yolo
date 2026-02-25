@@ -46,10 +46,14 @@ echo -e "${GREEN}Verifying dependencies...${NC}"
 python3 << 'EOF'
 import sys
 try:
+    Interpreter = None
     try:
-        from tflite_runtime.interpreter import Interpreter
+        from ai_edge_litert.interpreter import Interpreter
     except ImportError:
-        from tensorflow.lite.python.interpreter import Interpreter
+        try:
+            from tflite_runtime.interpreter import Interpreter
+        except ImportError:
+            from tensorflow.lite.python.interpreter import Interpreter
     import cv2
     import numpy
     print("✓ All dependencies verified")

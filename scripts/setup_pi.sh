@@ -129,18 +129,32 @@ echo -e "${GREEN}[7/9] Installing TFLite runtime and dependencies...${NC}"
 # Install numpy first (required for TFLite)
 pip install numpy>=1.21.0
 
-# Install TFLite Runtime (much lighter than full TensorFlow)
-echo -e "${BLUE}Installing TFLite Runtime (lightweight, ~5MB)...${NC}"
+# Install TFLite Runtime
+# Python 3.12+ removed the 'imp' module, so tflite-runtime won't work.
+# Use ai-edge-litert (Google's official replacement) for Python 3.12+.
+echo -e "${BLUE}Installing TFLite Runtime...${NC}"
 
-# Try ARM-optimized tflite-runtime first
-pip install tflite-runtime || {
-    echo -e "${YELLOW}Standard tflite-runtime failed, trying alternative...${NC}"
-    # Fallback: try from piwheels or build
-    pip install --extra-index-url https://google-coral.github.io/py-repo/ tflite-runtime || {
-        echo -e "${YELLOW}TFLite runtime not available, installing full TensorFlow...${NC}"
-        pip install tensorflow
+PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)')
+
+if [ "$PYTHON_MINOR" -ge 12 ]; then
+    echo -e "${BLUE}Python 3.12+ detected — installing ai-edge-litert...${NC}"
+    pip install ai-edge-litert || {
+        echo -e "${YELLOW}ai-edge-litert failed, trying tflite-runtime anyway...${NC}"
+        pip install tflite-runtime || {
+            echo -e "${YELLOW}Falling back to full TensorFlow...${NC}"
+            pip install tensorflow
+        }
     }
-}
+else
+    echo -e "${BLUE}Python 3.${PYTHON_MINOR} — installing tflite-runtime...${NC}"
+    pip install tflite-runtime || {
+        echo -e "${YELLOW}tflite-runtime failed, trying ai-edge-litert...${NC}"
+        pip install ai-edge-litert || {
+            echo -e "${YELLOW}Falling back to full TensorFlow...${NC}"
+            pip install tensorflow
+        }
+    }
+fi
 
 # Note: PyTorch is NOT installed here - use env_pt for PyTorch
 # This keeps the TFLite environment lightweight
@@ -175,13 +189,19 @@ except ImportError as e:
 # Test TFLite
 try:
     try:
-        from tflite_runtime.interpreter import Interpreter
-        print(f"  ✓ TFLite Runtime (optimized)")
+        from ai_edge_litert.interpreter import Interpreter
+        print(f"  ✓ ai-edge-litert (Python 3.12+ compatible)")
     except ImportError:
-        import tensorflow as tf
-        print(f"  ✓ TensorFlow {tf.__version__}")
+        try:
+            from tflite_runtime.interpreter import Interpreter
+            print(f"  ✓ TFLite Runtime (optimized)")
+        except ImportError:
+            import tensorflow as tf
+            print(f"  ✓ TensorFlow {tf.__version__}")
 except ImportError as e:
     print(f"  ✗ TFLite/TensorFlow: {e}")
+    print(f"    For Python 3.12+: pip install ai-edge-litert")
+    print(f"    For Python 3.9-3.11: pip install tflite-runtime")
     sys.exit(1)
 
 # Test OpenCV
@@ -233,9 +253,12 @@ if [ -f "$PROJECT_ROOT/model/yolov5n-int8.tflite" ]; then
     python3 << 'EOF'
 try:
     try:
-        from tflite_runtime.interpreter import Interpreter
+        from ai_edge_litert.interpreter import Interpreter
     except ImportError:
-        from tensorflow.lite.python.interpreter import Interpreter
+        try:
+            from tflite_runtime.interpreter import Interpreter
+        except ImportError:
+            from tensorflow.lite.python.interpreter import Interpreter
     
     interpreter = Interpreter(model_path="model/yolov5n-int8.tflite", num_threads=4)
     interpreter.allocate_tensors()

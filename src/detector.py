@@ -66,15 +66,24 @@ class TFLiteDetector:
                 print(f"ERROR: Model not found: {self.model_path}")
                 return False
 
-            # Import tflite runtime
+            # Import TFLite interpreter (supports Python 3.12+)
+            Interpreter = None
             try:
-                from tflite_runtime.interpreter import Interpreter
+                from ai_edge_litert.interpreter import Interpreter
             except ImportError:
                 try:
-                    from tensorflow.lite.python.interpreter import Interpreter
+                    from tflite_runtime.interpreter import Interpreter
                 except ImportError:
-                    print("ERROR: TFLite runtime not found. Install: pip install tflite-runtime")
-                    return False
+                    try:
+                        from tensorflow.lite.python.interpreter import Interpreter
+                    except ImportError:
+                        pass
+
+            if Interpreter is None:
+                print("ERROR: No TFLite runtime found.")
+                print("  For Python 3.12+: pip install ai-edge-litert")
+                print("  For Python 3.9-3.11: pip install tflite-runtime")
+                return False
 
             # Create interpreter
             self.interpreter = Interpreter(
