@@ -35,8 +35,8 @@ echo -e "${GREEN}Activating virtual environment...${NC}"
 source env/bin/activate
 
 # Check model exists
-if [ ! -f "model/yolov5n-int8.tflite" ]; then
-    echo -e "${RED}✗ TFLite model not found: model/yolov5n-int8.tflite${NC}"
+if [ ! -f "model/yolov8n-fp16.tflite" ]; then
+    echo -e "${RED}\u2717 TFLite model not found: model/yolov8n-fp16.tflite${NC}"
     echo -e "${YELLOW}Please ensure the model file is in place${NC}"
     exit 1
 fi
@@ -68,7 +68,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
-echo -e "${BLUE}Model: model/yolov5n-int8.tflite${NC}"
+echo -e "${BLUE}Model: model/yolov8n-fp16.tflite${NC}"
 echo -e "${BLUE}Resolution: 320x320${NC}"
 echo ""
 echo "Starting detection pipeline..."

@@ -1,5 +1,5 @@
 [Unit]
-Description=YOLOv5 Human Detection - TFLite INT8
+Description=YOLOv8n Human Detection - TFLite FP16
 After=network.target
 
 [Service]

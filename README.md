@@ -1,10 +1,10 @@
-# Raspberry Pi YOLOv5 TFLite Human Detection
+# Raspberry Pi YOLOv8n TFLite Human Detection
 
-Real-time human detection on Raspberry Pi using YOLOv5n with TensorFlow Lite INT8 quantization for optimal performance.
+Real-time human detection on Raspberry Pi using YOLOv8n with TensorFlow Lite float16 quantization for optimal performance.
 
 ## Features
 
-- **TFLite INT8 Quantized Model** - 3-5x faster inference than PyTorch
+- **TFLite Float16 Model** - Fast inference with full accuracy
 - **Low Memory Footprint** - ~200MB RAM vs ~800MB for PyTorch
 - **Multiple Camera Support** - Picamera2, legacy Picamera, USB cameras
 - **Headless Mode** - Run via SSH without display
@@ -17,16 +17,16 @@ Real-time human detection on Raspberry Pi using YOLOv5n with TensorFlow Lite INT
 | Hardware | Raspberry Pi 3B/4/5 (4GB+ RAM recommended) |
 | Camera | Pi Camera Module 1.3/2/3 or USB camera |
 | OS | Raspberry Pi OS Bullseye/Bookworm |
-| Python | 3.9 - 3.11 (TFLite compatibility) |
+| Python | 3.9+ (including 3.12+) |
 
 ## Model Specifications
 
 | Property | Value |
 |----------|-------|
-| Model | `yolov5n-int8.tflite` |
-| Input | 320×320×3 RGB (uint8) |
-| Output | 6300 predictions × 85 values |
-| Size | ~2.0 MB |
+| Model | `yolov8n-fp16.tflite` |
+| Input | 320×320×3 RGB (float32, normalized 0-1) |
+| Output | 84 × 2100 (transposed: 2100 predictions × 84 values) |
+| Size | ~6.1 MB |
 | Classes | human (COCO person) |
 
 ## Expected Performance
@@ -67,7 +67,7 @@ chmod +x scripts/setup_pi.sh
 ```
 yolo/
 ├── model/
-│   └── yolov5n-int8.tflite  # TFLite INT8 quantized model (human detection)
+│   └── yolov8n-fp16.tflite  # TFLite float16 model (human detection)
 ├── src/
 │   ├── capture.py           # Camera capture (multi-backend)
 │   ├── capture_threaded.py  # Threaded camera capture (high FPS)
