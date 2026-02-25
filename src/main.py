@@ -44,6 +44,7 @@ IOU_THRESHOLD = 0.45
 CAMERA_RESOLUTION = (320, 320)
 CAMERA_FRAMERATE = 30
 CAMERA_RESET_INTERVAL = 6  # Reset camera every N seconds (0 to disable)
+CAMERA_WARMUP_FRAMES = 5   # Ignore detections for N frames after camera reset/movement
 
 # FPS Optimizations
 SKIP_FRAMES = 2  # Process every Nth frame (1=no skip, 2=skip every other, 3=process 1/3)
@@ -146,6 +147,7 @@ class DetectionPipeline:
         last_camera_reset = time.time()
         frame_counter = 0
         last_detections = []
+        warmup_remaining = CAMERA_WARMUP_FRAMES  # suppress detections on startup too
 
         try:
             while self.is_running:
@@ -156,6 +158,8 @@ class DetectionPipeline:
                         print("ERROR: Camera reset failed")
                         break
                     last_camera_reset = time.time()
+                    warmup_remaining = CAMERA_WARMUP_FRAMES
+                    last_detections = []
                     print("Camera reset complete")
 
                 # Capture frame
@@ -169,6 +173,12 @@ class DetectionPipeline:
                 if frame_counter % SKIP_FRAMES == 0:
                     # Run detection
                     detections = self.detector.detect(frame)
+
+                    # Suppress detections during warmup (camera auto-exposure settling)
+                    if warmup_remaining > 0:
+                        detections = []
+                        warmup_remaining -= 1
+
                     last_detections = detections
                     self.total_detections += len(detections)
                 else:
