@@ -55,7 +55,9 @@ class TFLiteDetector:
 
         # INT8 quantization crushes objectness scores, so we gate on
         # objectness instead of multiplying it into the confidence.
-        self.objectness_gate = 0.005
+        # Real detections typically have raw objectness >= 7 (~0.018)
+        # while noise sits at raw=5 (~0.006), one step above zero-point.
+        self.objectness_gate = 0.015
 
         # We only care about person (class 0)
         self.class_names = {0: 'human'}
@@ -207,17 +209,27 @@ class TFLiteDetector:
         # Person class score
         person_score = all_class_scores[:, self.PERSON_CLASS_ID]
 
+        # Require person score to be clearly dominant:
+        # person must beat the 2nd-best class by a margin.
+        # This eliminates anchors where several classes score similarly
+        # (ambiguous = not a real person).
+        sorted_scores = np.sort(all_class_scores, axis=1)
+        second_best = sorted_scores[:, -2]
+        margin = person_score - second_best
+        has_clear_margin = margin > 0.05
+
         # INT8 quantization compresses objectness into a very narrow
         # range (often max ~0.08), so the traditional
         #   confidence = objectness * class_score
         # yields values too small to be usable.
         #
         # Instead we use the person CLASS SCORE directly as the
-        # confidence and keep objectness only as a soft gate
-        # ("something is here") to suppress pure-noise anchors.
+        # confidence and keep objectness only as a hard gate
+        # to suppress pure-noise anchors.
         confidence = person_score
 
         valid = (is_person
+                 & has_clear_margin
                  & (confidence >= self.confidence_threshold)
                  & (objectness > self.objectness_gate)
                  & (width > 0.001)
