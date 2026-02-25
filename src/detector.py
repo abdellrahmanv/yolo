@@ -53,6 +53,10 @@ class TFLiteDetector:
         # Number of classes in COCO model
         self.num_classes = 80
 
+        # INT8 quantization crushes objectness scores, so we gate on
+        # objectness instead of multiplying it into the confidence.
+        self.objectness_gate = 0.005
+
         # We only care about person (class 0)
         self.class_names = {0: 'human'}
 
@@ -154,8 +158,9 @@ class TFLiteDetector:
             output_data = self.interpreter.get_tensor(self.output_details['index'])
             output_float = (output_data.astype(np.float32) - self.output_zero_point) * self.output_scale
 
-            # Clamp negative values (artifact of INT8 dequantization)
-            output_float = np.maximum(output_float, 0.0)
+            # NOTE: Do NOT clamp the whole tensor to zero — negative
+            # dequantized values are valid for small bbox widths/heights.
+            # Clamping would destroy bounding boxes.
 
             # Parse detections
             detections = self._parse_output(output_float[0], original_size)
@@ -202,12 +207,21 @@ class TFLiteDetector:
         # Person class score
         person_score = all_class_scores[:, self.PERSON_CLASS_ID]
 
-        # Confidence = objectness * class_score
-        confidence = objectness * person_score
+        # INT8 quantization compresses objectness into a very narrow
+        # range (often max ~0.08), so the traditional
+        #   confidence = objectness * class_score
+        # yields values too small to be usable.
+        #
+        # Instead we use the person CLASS SCORE directly as the
+        # confidence and keep objectness only as a soft gate
+        # ("something is here") to suppress pure-noise anchors.
+        confidence = person_score
+
         valid = (is_person
                  & (confidence >= self.confidence_threshold)
-                 & (width > 0.01)
-                 & (height > 0.01))
+                 & (objectness > self.objectness_gate)
+                 & (width > 0.001)
+                 & (height > 0.001))
 
         if not np.any(valid):
             return []

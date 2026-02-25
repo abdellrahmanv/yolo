@@ -37,7 +37,7 @@ LOG_DIR.mkdir(exist_ok=True)
 
 # Model settings
 MODEL_PATH = PROJECT_ROOT / "model" / "yolov5n-int8.tflite"
-CONFIDENCE_THRESHOLD = 0.35  # Lowered for INT8 quantized models
+CONFIDENCE_THRESHOLD = 0.25  # Uses person class score directly (INT8 fix)
 IOU_THRESHOLD = 0.45
 
 # Camera settings (matches model input for optimal performance)
@@ -272,8 +272,8 @@ def parse_args():
     parser.add_argument(
         '--confidence', '-c',
         type=float,
-        default=0.35,
-        help='Confidence threshold (default: 0.35)'
+        default=0.25,
+        help='Confidence threshold (default: 0.25)'
     )
     parser.add_argument(
         '--model', '-m',
