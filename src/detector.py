@@ -38,7 +38,7 @@ class TFLiteDetector:
         self.output_details = None
         self.is_loaded = False
 
-        self.input_shape = (320, 320)  # H, W
+        self.input_shape = (224, 224)  # H, W — smaller = faster on Pi
         self.num_classes = 80
         self.class_names = {0: 'human'}
 
