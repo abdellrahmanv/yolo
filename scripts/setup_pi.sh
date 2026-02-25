@@ -10,7 +10,7 @@ set -e  # Exit on error
 
 echo "=============================================="
 echo "  YOLOv5 TFLite Detection Setup"
-echo "  Glasses Detection - Raspberry Pi"
+echo "  Human Detection - Raspberry Pi"
 echo "=============================================="
 echo ""
 
@@ -221,11 +221,11 @@ echo ""
 echo -e "${GREEN}[9/9] Checking model and running test...${NC}"
 
 # Check for TFLite model
-if [ -f "$PROJECT_ROOT/model/best-int8.tflite" ]; then
-    echo -e "${GREEN}✓ TFLite model found: model/best-int8.tflite${NC}"
+if [ -f "$PROJECT_ROOT/model/yolov5n-int8.tflite" ]; then
+    echo -e "${GREEN}✓ TFLite model found: model/yolov5n-int8.tflite${NC}"
     
     # Get model size
-    MODEL_SIZE=$(du -h "$PROJECT_ROOT/model/best-int8.tflite" | cut -f1)
+    MODEL_SIZE=$(du -h "$PROJECT_ROOT/model/yolov5n-int8.tflite" | cut -f1)
     echo -e "${BLUE}  Model size: $MODEL_SIZE${NC}"
     
     # Test model loading
@@ -237,7 +237,7 @@ try:
     except ImportError:
         from tensorflow.lite.python.interpreter import Interpreter
     
-    interpreter = Interpreter(model_path="model/best-int8.tflite", num_threads=4)
+    interpreter = Interpreter(model_path="model/yolov5n-int8.tflite", num_threads=4)
     interpreter.allocate_tensors()
     
     input_details = interpreter.get_input_details()[0]
@@ -251,12 +251,12 @@ except Exception as e:
 EOF
 else
     echo -e "${RED}✗ TFLite model not found!${NC}"
-    echo -e "${YELLOW}Expected: $PROJECT_ROOT/model/best-int8.tflite${NC}"
+    echo -e "${YELLOW}Expected: $PROJECT_ROOT/model/yolov5n-int8.tflite${NC}"
 fi
 
 # Check for PyTorch model (optional backup)
 if [ -f "$PROJECT_ROOT/model/best.pt" ]; then
-    echo -e "${BLUE}ℹ PyTorch model also present: model/best.pt (not used)${NC}"
+    echo -e "${BLUE}ℹ PyTorch model also present: model/best.pt (not used by TFLite pipeline)${NC}"
 fi
 
 # Create logs directory
@@ -289,7 +289,7 @@ echo "  Location: $PROJECT_ROOT/env"
 echo "  Activate: source $PROJECT_ROOT/env/bin/activate"
 echo ""
 echo -e "${BLUE}Model:${NC}"
-echo "  TFLite: model/best-int8.tflite (INT8 quantized)"
+echo "  TFLite: model/yolov5n-int8.tflite (INT8 quantized, human detection)"
 echo ""
 echo -e "${BLUE}Next Steps:${NC}"
 echo "  1. Activate environment:"

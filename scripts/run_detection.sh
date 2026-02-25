@@ -2,7 +2,7 @@
 
 ###############################################################################
 # YOLOv5 TFLite Detection - Runtime Launcher
-# Activates virtual environment and starts glasses detection
+# Activates virtual environment and starts human detection
 ###############################################################################
 
 set -e
@@ -19,7 +19,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "=============================================="
-echo "  YOLOv5 TFLite Glasses Detection"
+echo "  YOLOv5 TFLite Human Detection"
 echo "=============================================="
 echo ""
 
@@ -35,8 +35,8 @@ echo -e "${GREEN}Activating virtual environment...${NC}"
 source env/bin/activate
 
 # Check model exists
-if [ ! -f "model/best-int8.tflite" ]; then
-    echo -e "${RED}✗ TFLite model not found: model/best-int8.tflite${NC}"
+if [ ! -f "model/yolov5n-int8.tflite" ]; then
+    echo -e "${RED}✗ TFLite model not found: model/yolov5n-int8.tflite${NC}"
     echo -e "${YELLOW}Please ensure the model file is in place${NC}"
     exit 1
 fi
@@ -64,7 +64,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
-echo -e "${BLUE}Model: model/best-int8.tflite${NC}"
+echo -e "${BLUE}Model: model/yolov5n-int8.tflite${NC}"
 echo -e "${BLUE}Resolution: 320x320${NC}"
 echo ""
 echo "Starting detection pipeline..."

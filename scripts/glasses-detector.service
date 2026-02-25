@@ -1,12 +1,12 @@
 [Unit]
-Description=YOLOv5 Glasses Detection - Final AI
+Description=YOLOv5 Human Detection - TFLite INT8
 After=network.target
 
 [Service]
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/yolo
-ExecStart=/bin/bash /home/pi/yolo/scripts/final_ai.sh --headless
+ExecStart=/bin/bash /home/pi/yolo/scripts/run_detection.sh --headless
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

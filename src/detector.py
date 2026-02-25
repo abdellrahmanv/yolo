@@ -1,7 +1,7 @@
 """
 YOLOv5 TFLite Detection Module
 Handles INT8 quantized model inference for Raspberry Pi
-Optimized for glasses detection
+Optimized for human detection (COCO person class)
 """
 
 import numpy as np
@@ -18,14 +18,18 @@ class TFLiteDetector:
     """
     TFLite INT8 quantized YOLOv5 detector
     Optimized for Raspberry Pi deployment
+    Detects humans (COCO person class = index 0)
     """
+
+    # COCO class index for person
+    PERSON_CLASS_ID = 0
 
     def __init__(self, model_path, confidence_threshold=0.25, iou_threshold=0.45):
         """
         Initialize TFLite detector
 
         Args:
-            model_path: Path to best-int8.tflite model file
+            model_path: Path to yolov5n-int8.tflite model file
             confidence_threshold: Minimum confidence for detections (0-1)
                                   NOTE: Lowered to 0.25 for INT8 quantized models
             iou_threshold: IoU threshold for NMS
@@ -43,11 +47,14 @@ class TFLiteDetector:
         self.input_dtype = np.uint8
 
         # Quantization parameters (will be updated from model)
-        self.output_scale = 0.018480218946933746
-        self.output_zero_point = 3
+        self.output_scale = 0.00586441
+        self.output_zero_point = 4
 
-        # Class names for glasses detection
-        self.class_names = {0: 'glasses'}
+        # Number of classes in COCO model
+        self.num_classes = 80
+
+        # We only care about person (class 0)
+        self.class_names = {0: 'human'}
 
         # Performance tracking
         self.inference_times = []
@@ -159,22 +166,25 @@ class TFLiteDetector:
         """
         Parse YOLOv5 TFLite output - VECTORIZED for speed
 
-        YOLOv5 TFLite output format: [6300, 6]
-        Each row: [x_center, y_center, width, height, objectness, class_0_score]
+        YOLOv5n COCO TFLite output format: [6300, 85]
+        Each row: [x_center, y_center, width, height, objectness, class_0 ... class_79]
+        We only extract person detections (class index 0 = column 5).
         """
         original_h, original_w = original_size
         input_h, input_w = self.input_shape
 
-        # Vectorized: extract all columns at once
+        # Vectorized: extract bbox + objectness
         x_center = output[:, 0]
         y_center = output[:, 1]
         width = output[:, 2]
         height = output[:, 3]
         objectness = output[:, 4]
-        class_score = output[:, 5]
 
-        # Vectorized confidence and filtering
-        confidence = objectness * class_score
+        # Person class score is at column index 5 (COCO class 0)
+        person_score = output[:, 5 + self.PERSON_CLASS_ID]
+
+        # Confidence = objectness * class_score
+        confidence = objectness * person_score
         valid = (confidence >= self.confidence_threshold) & (width > 0.01) & (height > 0.01)
 
         if not np.any(valid):
@@ -205,7 +215,7 @@ class TFLiteDetector:
         # Filter invalid boxes and tiny detections
         box_w = x2 - x1
         box_h = y2 - y1
-        box_valid = (x2 > x1) & (y2 > y1) & (box_w >= 20) & (box_h >= 10)
+        box_valid = (x2 > x1) & (y2 > y1) & (box_w >= 15) & (box_h >= 15)
 
         # Build detections list
         detections = []
@@ -213,8 +223,8 @@ class TFLiteDetector:
             detections.append({
                 'bbox': [int(x1[i]), int(y1[i]), int(x2[i]), int(y2[i])],
                 'confidence': float(confidence[i]),
-                'class_id': 0,
-                'class_name': 'glasses'
+                'class_id': self.PERSON_CLASS_ID,
+                'class_name': 'human'
             })
 
         return detections
@@ -224,12 +234,17 @@ class TFLiteDetector:
         if len(detections) == 0:
             return []
 
-        boxes = np.array([d['bbox'] for d in detections])
+        boxes_xyxy = np.array([d['bbox'] for d in detections])
         scores = np.array([d['confidence'] for d in detections])
 
-        # OpenCV NMS
+        # Convert [x1, y1, x2, y2] -> [x, y, w, h] for cv2.dnn.NMSBoxes
+        boxes_xywh = boxes_xyxy.copy()
+        boxes_xywh[:, 2] = boxes_xyxy[:, 2] - boxes_xyxy[:, 0]  # w = x2 - x1
+        boxes_xywh[:, 3] = boxes_xyxy[:, 3] - boxes_xyxy[:, 1]  # h = y2 - y1
+
+        # OpenCV NMS expects [x, y, w, h]
         indices = cv2.dnn.NMSBoxes(
-            boxes.tolist(),
+            boxes_xywh.tolist(),
             scores.tolist(),
             self.confidence_threshold,
             self.iou_threshold
@@ -250,7 +265,7 @@ class TFLiteDetector:
             conf = det['confidence']
             class_name = det['class_name']
 
-            # Green color for glasses
+            # Green color for human detection
             color = (0, 255, 0)
 
             # Draw bounding box
@@ -285,7 +300,7 @@ class TFLiteDetector:
 if __name__ == "__main__":
     print("Testing TFLite detector...")
     
-    detector = TFLiteDetector("../model/best-int8.tflite")
+    detector = TFLiteDetector("../model/yolov5n-int8.tflite")
     
     if detector.load_model():
         # Test with dummy frame

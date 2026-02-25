@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 YOLOv5 TFLite Detection Pipeline - FAST STARTUP
-Raspberry Pi Camera + TFLite INT8 Real-time Glasses Detection
+Raspberry Pi Camera + TFLite INT8 Real-time Human Detection
 """
 
 import os
@@ -14,7 +14,7 @@ from pathlib import Path
 if 'DISPLAY' not in os.environ:
     os.environ['DISPLAY'] = ':0'
 
-print("Starting YOLOv5 TFLite detector...")
+print("Starting YOLOv5 TFLite human detector...")
 _start_time = time.time()
 
 import cv2
@@ -36,8 +36,8 @@ LOG_DIR.mkdir(exist_ok=True)
 # ============================================
 
 # Model settings
-MODEL_PATH = PROJECT_ROOT / "model" / "best-int8.tflite"
-CONFIDENCE_THRESHOLD = 0.50  # Confidence threshold
+MODEL_PATH = PROJECT_ROOT / "model" / "yolov5n-int8.tflite"
+CONFIDENCE_THRESHOLD = 0.35  # Lowered for INT8 quantized models
 IOU_THRESHOLD = 0.45
 
 # Camera settings (matches model input for optimal performance)
@@ -46,14 +46,14 @@ CAMERA_FRAMERATE = 30
 CAMERA_RESET_INTERVAL = 4  # Reset camera every N seconds (0 to disable)
 
 # FPS Optimizations
-SKIP_FRAMES = 1  # Process every Nth frame (1=no skip, 2=skip every other, 3=process 1/3)
+SKIP_FRAMES = 2  # Process every Nth frame (1=no skip, 2=skip every other, 3=process 1/3)
 HEADLESS_BOOST = False  # True = no display output, maximum FPS
 INPUT_SIZE = 320  # Model input size (smaller = faster: 160, 224, 320)
 USE_MJPG = True  # Use MJPG camera format (faster on Pi)
 
 # Display settings
 DISPLAY_OUTPUT = True
-WINDOW_NAME = "Glasses Detection"
+WINDOW_NAME = "Human Detection"
 
 # Performance settings
 SHOW_FPS = True
@@ -257,7 +257,7 @@ class DetectionPipeline:
 def parse_args():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description='YOLOv5 TFLite Glasses Detection'
+        description='YOLOv5 TFLite Human Detection'
     )
     parser.add_argument(
         '--headless', '-H',
@@ -272,8 +272,8 @@ def parse_args():
     parser.add_argument(
         '--confidence', '-c',
         type=float,
-        default=0.5,
-        help='Confidence threshold (default: 0.5)'
+        default=0.35,
+        help='Confidence threshold (default: 0.35)'
     )
     parser.add_argument(
         '--model', '-m',

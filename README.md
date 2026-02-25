@@ -1,6 +1,6 @@
-# Raspberry Pi YOLOv5 TFLite Glasses Detection
+# Raspberry Pi YOLOv5 TFLite Human Detection
 
-Real-time glasses detection on Raspberry Pi using YOLOv5 with TensorFlow Lite INT8 quantization for optimal performance.
+Real-time human detection on Raspberry Pi using YOLOv5n with TensorFlow Lite INT8 quantization for optimal performance.
 
 ## Features
 
@@ -23,11 +23,11 @@ Real-time glasses detection on Raspberry Pi using YOLOv5 with TensorFlow Lite IN
 
 | Property | Value |
 |----------|-------|
-| Model | `best-int8.tflite` |
+| Model | `yolov5n-int8.tflite` |
 | Input | 320×320×3 RGB (uint8) |
-| Output | 6300 predictions × 6 values |
-| Size | ~1.9 MB |
-| Classes | glasses |
+| Output | 6300 predictions × 85 values |
+| Size | ~2.0 MB |
+| Classes | human (COCO person) |
 
 ## Expected Performance
 
@@ -67,10 +67,10 @@ chmod +x scripts/setup_pi.sh
 ```
 yolo/
 ├── model/
-│   ├── best-int8.tflite    # TFLite INT8 quantized model (used)
-│   └── best.pt              # PyTorch model (backup)
+│   └── yolov5n-int8.tflite  # TFLite INT8 quantized model (human detection)
 ├── src/
 │   ├── capture.py           # Camera capture (multi-backend)
+│   ├── capture_threaded.py  # Threaded camera capture (high FPS)
 │   ├── detector.py          # TFLite inference engine
 │   └── main.py              # Main pipeline controller
 ├── scripts/
