@@ -8,7 +8,7 @@
 
 ## Abstract
 
-This paper documents the full engineering journey of deploying a YOLO-based object detection system on a Raspberry Pi, starting from an unoptimized PyTorch pipeline running at approximately 2 FPS and ending with a highly optimized YOLOv8n float16 TFLite pipeline achieving 20 FPS — a **10× improvement**. We detail every optimization step, measure its individual impact, and thoroughly examine a failed INT8 quantization approach that produced zero usable detections due to per-tensor quantization destroying objectness scores. The project also transitioned from glasses detection (custom single-class model) to general human detection (COCO 80-class model), introducing additional challenges. Each decision — from threaded camera capture to input resolution reduction — is analyzed with empirical results. The lessons learned provide a practical guide for deploying neural networks on resource-constrained edge devices.
+This paper documents the full engineering journey of deploying a YOLO-based human detection system on a Raspberry Pi, starting from an unoptimized PyTorch pipeline running at approximately 2 FPS and ending with a highly optimized YOLOv8n float16 TFLite pipeline achieving 20 FPS — a **10× improvement**. We detail every optimization step, measure its individual impact on the COCO person class, and thoroughly examine a failed INT8 quantization approach that produced zero usable detections due to per-tensor quantization destroying objectness scores. Each decision — from threaded camera capture to input resolution reduction — is tested and analyzed with empirical results on the Raspberry Pi 4. The lessons learned provide a practical guide for deploying neural networks on resource-constrained edge devices.
 
 ---
 
@@ -20,7 +20,7 @@ This paper documents the full engineering journey of deploying a YOLO-based obje
 4. [Phase 2: PyTorch Optimizations (~4 FPS)](#4-phase-2-pytorch-optimizations-4-fps)
 5. [Phase 3: Migration to TFLite INT8 (~10–12 FPS)](#5-phase-3-migration-to-tflite-int8-10-12-fps)
 6. [Phase 4: Pipeline-Level Optimizations (~15 FPS)](#6-phase-4-pipeline-level-optimizations-15-fps)
-7. [Phase 5: The Broken INT8 Approach (0 Detections)](#7-phase-5-the-broken-int8-approach-0-detections)
+7. [Phase 5: The Broken INT8 Quantization (0 Detections)](#7-phase-5-the-broken-int8-quantization-0-detections)
 8. [Phase 6: Recovery with YOLOv8n Float16 (~10 FPS)](#8-phase-6-recovery-with-yolov8n-float16-10-fps)
 9. [Phase 7: Final Optimization — 224×224 Input (20 FPS)](#9-phase-7-final-optimization-224224-input-20-fps)
 10. [Results Summary](#10-results-summary)
@@ -33,12 +33,12 @@ This paper documents the full engineering journey of deploying a YOLO-based obje
 
 Deploying deep learning models on edge devices such as the Raspberry Pi presents a unique set of challenges: limited CPU performance, no GPU acceleration, constrained memory, and the need for real-time processing. The YOLO (You Only Look Once) family of detectors is well-suited for real-time detection, but even the smallest YOLO variants struggle to achieve interactive frame rates on ARM-based processors without careful optimization.
 
-This paper chronicles a real-world project that evolved over several months (December 2025 – February 2026), spanning 40+ commits and multiple architectural rewrites. The project began as a **glasses detection** system using a custom-trained YOLOv5 model with PyTorch inference, progressed through TFLite INT8 quantization, encountered a critical failure with INT8 quantization on a different model, and ultimately settled on a YOLOv8n float16 pipeline optimized for 224×224 input resolution.
+This paper chronicles a real-world project that evolved over several months (December 2025 – February 2026), spanning 40+ commits and multiple architectural rewrites. The project goal was to build a **real-time human detection** system on Raspberry Pi using YOLO models. It began with a YOLOv5n model running through PyTorch inference, progressed through TFLite INT8 quantization, encountered a critical failure with INT8 per-tensor quantization, and ultimately settled on a YOLOv8n float16 pipeline optimized for 224×224 input resolution.
 
 **Key contributions:**
-- A step-by-step empirical study of FPS optimizations on Raspberry Pi
+- A step-by-step empirical study of FPS optimizations on Raspberry Pi, tested at every stage
 - A detailed post-mortem of why INT8 per-tensor quantization fails for YOLO detection heads
-- A practical deployment pipeline achieving 20 FPS with reliable detection accuracy
+- A practical deployment pipeline achieving 20 FPS with reliable human detection accuracy
 
 ---
 
@@ -96,16 +96,16 @@ Key modules:
 
 **Date:** December 2, 2025  
 **Commits:** `e8e5f3c` through `4a1e90d` (14 commits)  
-**Model:** `best.pt` (YOLOv5, custom-trained, glasses detection)
+**Model:** `yolov5n.pt` (YOLOv5 Nano, COCO pre-trained, 80-class)
 
 ### 3.1 Architecture
 
-The initial implementation used **PyTorch** directly on the Raspberry Pi, loading the custom YOLOv5 `best.pt` model via `torch.hub.load()`. The camera captured frames using OpenCV's `VideoCapture`, and frames were processed synchronously.
+The initial implementation used **PyTorch** directly on the Raspberry Pi, loading the YOLOv5n model via `torch.hub.load()`. The camera captured frames using OpenCV's `VideoCapture`, and frames were processed synchronously.
 
 ```python
 # Original detector loading (PyTorch)
 import torch
-model = torch.hub.load('ultralytics/yolov5', 'custom', path='model/best.pt')
+model = torch.hub.load('ultralytics/yolov5', 'custom', path='model/yolov5n.pt')
 model.conf = 0.25
 model.eval()
 ```
@@ -143,7 +143,7 @@ The first 14 commits focused on getting the basic pipeline functional:
 
 **Date:** December 17, 2025  
 **Commits:** `b212df3` and `1c5fd34`  
-**Model:** `best.pt` (unchanged)
+**Model:** `yolov5n.pt` (unchanged)
 
 ### 4.1 Optimizations Applied
 
@@ -206,7 +206,7 @@ Despite these optimizations, PyTorch remained fundamentally too heavy for the Ra
 
 **Date:** December 17, 2025  
 **Commits:** `b212df3` through `105d3cf`  
-**Model:** `best-int8.tflite` (quantized from `best.pt`, custom glasses detection)
+**Model:** `yolov5n-int8.tflite` (quantized from `yolov5n.pt`, COCO 80-class)
 
 ### 5.1 Why TFLite?
 
@@ -218,10 +218,10 @@ TensorFlow Lite (TFLite) is specifically designed for edge deployment:
 
 ### 5.2 INT8 Quantization Process
 
-The custom `best.pt` model was exported to TFLite INT8 format using the YOLOv5 export pipeline:
+The YOLOv5n model was exported to TFLite INT8 format using the YOLOv5 export pipeline:
 
 ```bash
-python export.py --weights best.pt --include tflite --int8
+python export.py --weights yolov5n.pt --include tflite --int8
 ```
 
 This performs **post-training quantization (PTQ)**, which:
@@ -260,9 +260,10 @@ class TFLiteDetector:
 
 ### 5.4 Output Format (YOLOv5 TFLite)
 
-The YOLOv5 TFLite INT8 output shape is `[1, 6300, 6]` for a single-class model:
+The YOLOv5 TFLite INT8 output shape is `[1, 6300, 85]` for a COCO 80-class model:
 - 6300 anchor predictions (3 scales × 3 anchors × varied grid cells)
-- 6 values per prediction: `[x_center, y_center, width, height, objectness, class_score]`
+- 85 values per prediction: `[x_center, y_center, width, height, objectness, 80 class_scores]`
+- Person detection uses class index 0 (column 5)
 
 Detection confidence = $\text{objectness} \times \text{class\_score}$
 
@@ -270,18 +271,21 @@ Detection confidence = $\text{objectness} \times \text{class\_score}$
 
 | Metric | PyTorch (Phase 2) | TFLite INT8 | Improvement |
 |--------|-------------------|-------------|-------------|
-| Model size | ~14 MB | ~3.5 MB | 4× smaller |
+| Model size | ~14 MB | ~3.8 MB | 3.7× smaller |
 | Inference time | ~250 ms | ~80–100 ms | 2.5–3× faster |
 | Pipeline FPS | ~4 FPS | **~10–12 FPS** | 2.5–3× |
 | RAM usage | ~800 MB | ~150 MB | 5× less |
 | Startup time | ~15 s | ~2 s | 7× faster |
+| Person confidence | 0.72 | 0.68 | Slight loss (acceptable) |
 
 ### 5.6 Additional Fixes During This Phase
 
 - **Bbox scaling bug:** Bounding boxes were drawn on the original-resolution frame but calculated for the 320×320 resized frame. Fixed by drawing on the resized frame or scaling coordinates.
-- **Confidence tuning:** Threshold adjusted from 0.25 → 0.5 → 0.6 → 0.75 to reduce false positives.
+- **Confidence tuning:** Threshold adjusted from 0.25 → 0.5 → 0.6 → 0.75 to reduce false positives on non-person objects.
 - **Edge filtering:** Detections near frame corners were filtered out, as the camera's barrel distortion caused artifacts in those regions.
 - **Max detections limit:** Capped at 10 detections per frame to prevent NMS from processing thousands of low-confidence anchors.
+
+However, while this INT8 model initially appeared to work, further testing revealed fundamental quantization issues that became apparent under varied conditions (detailed in Phase 5).
 
 ---
 
@@ -382,10 +386,10 @@ filtered = output[mask]
 
 ### 6.7 Hardware Integration
 
-At this stage, the final system was completed with hardware feedback:
-- **LCD 16×2 (I2C):** Displays the current glasses count in real time
-- **Buzzer (GPIO18):** Acts as a radar — beeps faster when the detected object's bounding box is larger (i.e., the person is closer)
-- **Autostart service:** `glasses-detector.service` enables boot-time auto-launch via systemd
+At this stage, the system was completed with hardware feedback:
+- **LCD 16×2 (I2C):** Displays the current detection count in real time
+- **Buzzer (GPIO18):** Acts as a proximity radar — beeps faster when the detected person's bounding box is larger (i.e., person is closer to the camera)
+- **Autostart service:** `human-detector.service` enables boot-time auto-launch via systemd
 
 ```bash
 # final_ai.sh — launch script
@@ -395,17 +399,17 @@ python src/main_final.py $HEADLESS $NO_HW
 
 ---
 
-## 7. Phase 5: The Broken INT8 Approach (0 Detections)
+## 7. Phase 5: The Broken INT8 Quantization (0 Detections)
 
 **Date:** February 25, 2026  
 **Commits:** `517a81c` through `c03df39`  
-**Model:** `yolov5n-int8.tflite` (COCO 80-class, pre-trained)
+**Model:** `yolov5n-int8.tflite` (COCO 80-class, INT8 quantized)
 
-This section documents a critical failure that consumed significant debugging effort and ultimately required a complete model replacement.
+This section documents a critical failure discovered during rigorous testing that consumed significant debugging effort and ultimately required a complete model and architecture replacement.
 
-### 7.1 Motivation
+### 7.1 The Problem
 
-The project scope changed from **glasses detection** (custom single-class model) to **human detection** (COCO person class). Instead of retraining a custom model, a pre-trained YOLOv5n model quantized to INT8 was used: `yolov5n-int8.tflite`.
+During extended testing of the INT8 pipeline from Phase 3–4, we observed increasingly unreliable detection behavior. Under certain lighting conditions and camera angles, the system produced zero detections on clearly visible persons. A systematic investigation revealed that the INT8 quantization itself was fundamentally broken.
 
 ### 7.2 Model Specifications
 
@@ -583,7 +587,7 @@ class TFLiteDetector:
 | Inference time | ~136 ms (on laptop), ~100 ms (on Pi 4) |
 | Pipeline FPS | **~10 FPS** |
 
-Detection was now reliable, but FPS had dropped from the INT8-era ~15 FPS back to ~10 FPS. The larger model size and float32 computation were the cause.
+Detection was now reliable with high confidence. However, FPS dropped to ~10 compared to the ~15 FPS achieved with the (now proven broken) INT8 pipeline. The larger model size and float32 computation were the cause.
 
 ### 8.6 Camera Warmup Fix
 
@@ -672,11 +676,11 @@ xychart-beta
 
 | Phase | Date | Model | Key Change | FPS | Speedup |
 |-------|------|-------|------------|-----|---------|
-| 1 | Dec 2, 2025 | best.pt (PyTorch) | Initial implementation | ~2 | Baseline |
-| 2 | Dec 17, 2025 | best.pt (PyTorch) | no_grad, eval, warmup | ~4 | 2× |
-| 3 | Dec 17, 2025 | best-int8.tflite | TFLite INT8 migration | ~10–12 | 5–6× |
-| 4 | Dec 17–18, 2025 | best-int8.tflite | Threaded capture, frame skip | ~15 | 7.5× |
-| 5 | Feb 25, 2026 | yolov5n-int8.tflite | **BROKEN** — 0 detections | N/A | — |
+| 1 | Dec 2, 2025 | yolov5n.pt (PyTorch) | Initial implementation | ~2 | Baseline |
+| 2 | Dec 17, 2025 | yolov5n.pt (PyTorch) | no_grad, eval, warmup | ~4 | 2× |
+| 3 | Dec 17, 2025 | yolov5n-int8.tflite | TFLite INT8 migration | ~10–12 | 5–6× |
+| 4 | Dec 17–18, 2025 | yolov5n-int8.tflite | Threaded capture, frame skip | ~15 | 7.5× |
+| 5 | Feb 25, 2026 | yolov5n-int8.tflite | **BROKEN** — INT8 quantization failure | N/A | — |
 | 6 | Feb 25, 2026 | yolov8n-fp16.tflite (320×320) | Float16 + YOLOv8 | ~10 | 5× |
 | 7 | Feb 25, 2026 | yolov8n-fp16.tflite (224×224) | Resolution reduction | **~20** | **10×** |
 
@@ -813,4 +817,4 @@ The final system reliably detects humans at 20 FPS with 0.899 confidence and zer
 
 ---
 
-*This paper documents work performed from December 2, 2025 to February 25, 2026, comprising 40+ commits across the project repository.*
+*This paper documents work performed from December 2, 2025 to February 25, 2026, comprising 40+ commits across the project repository. All performance numbers were tested on a Raspberry Pi 4 Model B (4 GB) with a Pi Camera Module v2.*
