@@ -68,10 +68,19 @@ This paper chronicles a real-world project that evolved over several months (Dec
 
 The detection system follows a three-stage pipeline:
 
-```
-Camera Capture → Preprocessing → Model Inference → Post-processing → Display/Hardware Output
-      ↑                                                                         ↓
-      └──────────────── Camera Reset (every 6s) ────────────────────────────────┘
+```mermaid
+flowchart LR
+    A["📷 Camera\nCapture"] --> B["🔄 Preprocess\n(resize + normalize)"]
+    B --> C["🧠 TFLite\nInference"]
+    C --> D["📊 Post-process\n(NMS + filter)"]
+    D --> E["🖥️ Display +\nHardware Output"]
+    E -->|"Reset every 6s"| A
+
+    style A fill:#4CAF50,color:#fff
+    style B fill:#2196F3,color:#fff
+    style C fill:#FF9800,color:#fff
+    style D fill:#9C27B0,color:#fff
+    style E fill:#F44336,color:#fff
 ```
 
 Key modules:
@@ -423,6 +432,14 @@ This is fundamentally flawed for YOLO detection heads because the 85 output colu
 | 4 | Objectness score | 0 – 1.0 | **0 – 0.08** |
 | 5–84 | Class probabilities | 0 – 1.0 | 0 – 0.08 |
 
+```mermaid
+xychart-beta
+    title "INT8 Per-Tensor Quantization: Value Range Compression"
+    x-axis ["BBox (expected)", "BBox (INT8)", "Objectness (expected)", "Objectness (INT8)", "Class Score (expected)", "Class Score (INT8)"]
+    y-axis "Max Value" 0 --> 350
+    bar [320, 1.47, 1.0, 0.08, 1.0, 0.08]
+```
+
 The objectness score, which should range from 0.0 to 1.0, was compressed into a range of approximately **0 to 0.08** after dequantization. The traditional YOLO confidence formula:
 
 $$\text{confidence} = \text{objectness} \times \text{class\_score}$$
@@ -434,6 +451,22 @@ $$\text{max confidence} = 0.08 \times 0.08 = 0.0064$$
 This value is far below any usable confidence threshold (typically 0.25–0.5), meaning **zero detections were ever produced**, regardless of what was in the frame.
 
 ### 7.4 Debugging Timeline
+
+```mermaid
+flowchart TD
+    A["🔧 Attempt 1:\nLower threshold\n0.5 → 0.35"] -->|"❌ 0 detections"| B["🔧 Attempt 2:\nArgmax + clamp\nnp.maximum(0)"]
+    B -->|"❌ Destroyed bboxes"| C["🔧 Attempt 3:\nBypass objectness\nuse class score directly"]
+    C -->|"⚠️ 3 detections\nbut many false positives"| D["🔧 Attempt 4:\nStricter gate + margin"]
+    D -->|"❌ Still unreliable"| E["💡 Root Cause Found:\nPer-tensor quantization\ncrushes objectness to 0.08"]
+    E -->|"✅ Solution"| F["🔄 Replace model:\nYOLOv8n Float16"]
+
+    style A fill:#FF5722,color:#fff
+    style B fill:#FF5722,color:#fff
+    style C fill:#FF9800,color:#fff
+    style D fill:#FF5722,color:#fff
+    style E fill:#2196F3,color:#fff
+    style F fill:#4CAF50,color:#fff
+```
 
 The following iterative fixes were attempted before identifying the root cause:
 
@@ -629,6 +662,14 @@ Surprisingly, the 224×224 model achieved **higher** confidence on the test subj
 
 ### 10.1 FPS Evolution Timeline
 
+```mermaid
+xychart-beta
+    title "FPS Evolution Across Optimization Phases"
+    x-axis ["Phase 1\nPyTorch", "Phase 2\nPT Optimized", "Phase 3\nTFLite INT8", "Phase 4\nThreaded+Skip", "Phase 5\nINT8 Broken", "Phase 6\nFP16 320", "Phase 7\nFP16 224"]
+    y-axis "Frames Per Second (FPS)" 0 --> 25
+    bar [2, 4, 11, 15, 0, 10, 20]
+```
+
 | Phase | Date | Model | Key Change | FPS | Speedup |
 |-------|------|-------|------------|-----|---------|
 | 1 | Dec 2, 2025 | best.pt (PyTorch) | Initial implementation | ~2 | Baseline |
@@ -644,6 +685,14 @@ Surprisingly, the 224×224 model achieved **higher** confidence on the test subj
 $$\text{Total speedup} = \frac{20 \text{ FPS}}{2 \text{ FPS}} = 10\times$$
 
 ### 10.3 FPS vs. Inference Time Breakdown
+
+```mermaid
+xychart-beta
+    title "Inference Time per Phase (ms)"
+    x-axis ["Phase 1\nPyTorch", "Phase 3\nTFLite INT8", "Phase 4\nThreaded", "Phase 7\nFinal 224"]
+    y-axis "Time (milliseconds)" 0 --> 520
+    bar [505, 138, 93, 40]
+```
 
 | Phase | Camera (ms) | Preprocess (ms) | Inference (ms) | Post-process (ms) | Display (ms) | Total (ms) |
 |-------|------------|-----------------|----------------|-------------------|-------------|------------|
@@ -681,6 +730,16 @@ INT8 quantization can reduce model size by 4× and improve inference speed signi
 ### 11.2 The Biggest Wins Are Architectural
 
 The largest FPS improvements came not from code micro-optimizations but from architectural decisions:
+
+```mermaid
+pie title FPS Gain Contribution by Optimization
+    "PyTorch → TFLite" : 8
+    "320×320 → 224×224" : 10
+    "Threaded Capture" : 2
+    "Frame Skipping" : 3
+    "torch.no_grad" : 1
+    "Vectorized NumPy" : 0.5
+```
 
 | Change | FPS Gain |
 |--------|----------|
